@@ -1,11 +1,14 @@
-# AGENTS.md — TEMPLATE de dashboard de captura de leads (High Ticket)
+# AGENTS.md — Dashboard de Tráfego Pago · Clínica PRC
 
 > Contexto completo em **`CLAUDE.md`** (mesma pasta) — leia-o antes de mexer no
 > projeto. Este arquivo é um resumo para agentes/ferramentas que seguem a
 > convenção `AGENTS.md`.
 >
-> **Este é um TEMPLATE limpo.** Todos os valores do cliente estão como
-> `<<PREENCHER: descrição>>`.
+> Este repositório é uma instância preenchida do template de dashboard de
+> tráfego pago (originalmente "High Ticket") para a **Clínica PRC** — só com
+> a aba de Meta Ads (sem Conversas/Leads/Compradores). O checklist abaixo é a
+> referência genérica do template, útil se este repo for usado de base para
+> replicar para outro cliente.
 
 ## ✅ CHECKLIST DE NOVO CLIENTE (fazer em ordem)
 
@@ -46,7 +49,12 @@ coleta/redação dos Insights. Ver `GUIA-REPLICACAO.md` para os detalhes de
 implementação (filtro cruzado, engine de tabela, gráficos Chart.js).
 
 > `template.html` e `app.js` são engine, mas carregam o nome do cliente em pontos
-> pontuais (título/logo e um comentário) — já marcados como `<<PREENCHER>>`.
+> pontuais (título/logo) — já preenchidos com "Clínica PRC" nesta instância.
+> Este cliente também exigiu 3 ajustes pontuais em `app.js` (não fazem parte
+> da engine genérica): os gráficos "por especialidade/plataforma/profissão"
+> foram repurposed para "por público (conjunto)/dia da semana/campanha" (sem
+> fonte de especialidade/profissão nesta conta), e a tabela nominal de leads
+> qualificados foi removida (sem nome/telefone — Meta Ads só traz agregados).
 
 ## Específico do cliente (troca a cada replicação)
 `build/build.py`, `build/identidade-visual.css` (cores, se aplicável),
