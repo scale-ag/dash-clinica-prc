@@ -12,20 +12,22 @@ iniciadas) e é publicada no **GitHub Pages**. Reconstrói sozinha a cada
 
 ## O que ela mostra
 
-- **KPIs**: Gasto Total, Impressões, Cliques, Leads (conversas iniciadas), CPL, MQLs, CPMQL, Tx-MQL, CTR, CPC, CPM.
-- **Evolução diária**: gasto/dia, leads/dia, CPL × CPMQL/dia.
-- **Distribuição de leads**: por origem, por público (conjunto de anúncios), por dia da semana e por campanha.
-- **Hierarquia Campanha → Conjunto → Anúncio**: gasto, leads, CPL, CPMQL por nível, com gráfico de custo por dia.
+- **Métrica principal**: Conversas iniciadas no WhatsApp (Messaging Conversations Started), Custo por Conversa Iniciada, Cliques no link, CTR, CPC.
+- **Evolução diária**: gasto/dia, conversas/dia, CPL/dia.
+- **Distribuição de conversas**: por origem, por público (conjunto de anúncios), por dia da semana e por campanha.
+- **Hierarquia Campanha → Conjunto → Anúncio**: gasto, conversas, CPL por nível, com gráfico de custo por dia.
 - **Toggle de imposto da mídia paga** e **modo claro/escuro**.
-- **Aba Relatório**: espelha a Visão Geral + painel de metas editável + Top/Piores Anúncios + Insights de Tráfego (texto, opcional — ver `build/GUIA-RELATORIOS.md`).
+- **Aba Relatório**: espelha a Visão Geral + painel de meta de CPL editável + Top Anúncios + Insights de Tráfego (texto, opcional — ver `build/GUIA-RELATORIOS.md`).
 
-## Critério de "MQL" nesta conta
+## Sem MQL/Vendas/Faturamento nesta conta
 
-Esta conta **não tem uma segunda camada de qualificação** — só a coluna
-`Messaging Conversations Started` do Meta Ads. Por isso, nesta dashboard,
-**Leads = MQLs = 100%** (todo lead sintetizado em `build.py` já entra com
-`q=1`). **Vendas/Faturamento/CAC/ROAS** não têm fonte conectada (sem lista de
-compradores) e aparecem como "-" em toda a dashboard.
+Esta conta só tem a coluna `Messaging Conversations Started` do Meta Ads —
+não há segunda camada de qualificação nem lista de compradores. Por isso a
+dashboard **não distingue Leads de MQLs** e **não mostra Vendas/Faturamento/
+CAC/ROAS**: a métrica única, em toda a UI, é **Conversas iniciadas no
+WhatsApp**. (Internamente `build.py`/`app.js` ainda calculam `mqls`/`sales`
+para não quebrar o motor genérico do template, mas nada disso aparece na
+tela — ver `CLAUDE.md` para os detalhes de implementação.)
 
 ## Fontes de dados (somente leitura)
 
