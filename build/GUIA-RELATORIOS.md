@@ -73,21 +73,20 @@ os Insights.
 
 ## Contexto do funil
 
-**Funil de High Ticket (<<PREENCHER: nome do cliente>>)** — <<PREENCHER: descrição
-curta do cliente/oferta>>. Funil de captura via WhatsApp com venda 1:1 (comercial
-fecha por conversa/reunião, não carrinho direto): o anúncio no Meta Ads leva
-a uma página de captura com botão do WhatsApp; ao clicar, o lead chama no
-WhatsApp Business do cliente e o webhook de mensageria dispara na 1ª mensagem,
-que cai na aba **Conversas** (fonte principal de leads deste dashboard). O
-critério de qualificação (MQL) é <<PREENCHER: critério de MQL do cliente, ex.
-"o lead ser médico">> — se qualificado, segue a conversa com o comercial até a
-venda (registrada na aba de Compradores e cruzada de volta ao anúncio por telefone).
+**Funil de tráfego pago (Clínica PRC)** — captação de pacientes via WhatsApp a
+partir de anúncios no Meta Ads (sigla de campanha `PRC | E2-CAP`). O anúncio
+leva a uma conversa de WhatsApp; a própria Meta reporta essa conversa iniciada
+na coluna **Messaging Conversations Started**, única fonte de lead desta
+conta (sem planilha de Conversas/CRM conectada). Não há segunda camada de
+qualificação nem lista de compradores nesta conta — por isso o funil só vai
+até Leads/MQLs (que aqui são o mesmo número, 100%); Vendas/Faturamento
+aparecem como "-" até o cliente conectar uma fonte comercial.
 
 ```
-Impressões → Cliques/abertura do WhatsApp → Leads → MQLs → Vendas → Faturamento
+Impressões → Cliques → Leads (conversas WhatsApp) → MQLs (= Leads, 100%) → Vendas → Faturamento
 ```
 
-- **MQL** = coluna de qualificação (<<PREENCHER: nome da coluna de MQL>>) == "Sim" (ver `build.py` → `is_medico`).
+- **MQL** nesta conta = todo lead sintetizado em `build.py::process()` (sem coluna de qualificação própria — ver seção "Regra de Lead Qualificado (MQL)" em `CLAUDE.md`).
 - **Agendamento** = o lead qualificado marcou horário de reunião com o comercial.
 - **Reunião Realizada** = a reunião de fato aconteceu (o lead compareceu). O
   inverso disso é o **No‑Show** (agendou e não compareceu) — a métrica de alerta

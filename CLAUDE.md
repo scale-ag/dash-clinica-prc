@@ -1,18 +1,20 @@
-# CLAUDE.md — Contexto do projeto (TEMPLATE High Ticket)
+# CLAUDE.md — Contexto do projeto (Dashboard Clínica PRC)
 
 > Este arquivo é lido automaticamente pelo Claude Code ao abrir o repositório.
 > Ele carrega TODO o contexto necessário para continuar o trabalho sem depender
 > de mensagens anteriores. Mantenha-o atualizado.
 >
-> **Este é um TEMPLATE limpo.** Todos os valores específicos do cliente estão
-> marcados como `<<PREENCHER: descrição>>`. Siga o CHECKLIST abaixo para
-> configurar um cliente novo.
+> **Este repositório já está configurado para a Clínica PRC** (instância
+> preenchida do template genérico de dashboard de tráfego pago). O CHECKLIST
+> abaixo é a referência genérica do template original — útil só se este repo
+> for usado de base para configurar OUTRO cliente do zero (copiar a pasta,
+> trocar os valores marcados como placeholder em cada arquivo).
 
 ---
 
-## ✅ CHECKLIST DE NOVO CLIENTE (fazer em ordem)
+## ✅ CHECKLIST DE NOVO CLIENTE (referência do template — fazer em ordem)
 
-Preencha cada `<<PREENCHER: …>>` do repositório. Ordem sugerida:
+Preencha cada valor marcado como placeholder no repositório. Ordem sugerida:
 
 1. **`build/build.py` — constantes do topo:**
    - `SPREADSHEET_ID` — ID da planilha central do Google Sheets do cliente.
@@ -61,73 +63,59 @@ Preencha cada `<<PREENCHER: …>>` do repositório. Ordem sugerida:
 
 ## O que é
 
-Dashboard de **Captura de Leads** — um app de BI estático (HTML/CSS/JS
-puro + Chart.js via CDN) publicado no **GitHub Pages**, que cruza a lista de
-**Leads** com o gerenciador de mídia paga e se atualiza sozinho a cada ~30 min
-(build 100% na nuvem via GitHub Actions, disparado externamente pelo cron-job.org).
+Dashboard de **Tráfego Pago** — um app de BI estático (HTML/CSS/JS
+puro + Chart.js via CDN) publicado no **GitHub Pages**, que lê o gerenciador de
+mídia paga (Meta Ads) e se atualiza sozinho a cada ~30 min (build 100% na
+nuvem via GitHub Actions, disparado externamente pelo cron-job.org).
 
-- **URL pública:** `https://<<PREENCHER: owner do GitHub>>.github.io/<<PREENCHER: nome do repositório>>/`
-- **Somente leitura** das planilhas. Nunca escrever de volta.
+- **URL pública:** `https://scale-ag.github.io/dash-clinica-prc/`
+- **Somente leitura** da planilha. Nunca escrever de volta.
 
 ## Fontes de dados (Google Sheets)
 
-Spreadsheet ID: `<<PREENCHER: SPREADSHEET_ID>>` ("<<PREENCHER: nome da planilha central>>").
+Spreadsheet ID: `1SrzEB16RhXoQm28tNRF4TcUmhYqaTJZBlq5xQCCRkLE` (planilha de mídia paga da Clínica PRC).
 
 | Aba | gid | Colunas usadas |
 |-----|-----|----------------|
-| **Conversas** (fonte principal — webhook de mensageria/WhatsApp) | `<<PREENCHER: GID_CONVERSAS>>` | `Data` · `Mensagem` · `Nome` · `Telefone` · coluna de MQL · `Campanha` · `Conjunto` · `Anúncio` · `Especialidades` |
-| **Leads** (legado — popup/form antigo, só contada) | `<<PREENCHER: GID_LEADS>>` | `Data` · `Nome` · `Email` · `Telefone` · coluna de MQL · `Especialidade` · `utm_*` · `MQL` · `Compra Detectada`/`Faturamento Detectado`/`Data Compra` |
-| **Meta Ads** | `<<PREENCHER: GID_META>>` | `Day` · `Ad ID` · `Campaign Name` · `Ad Set Name` · `Ad Name` · `Amount Spent` · `Impressions` · `Link Clicks` · `Landing Page Views` · `Content Views` · `Adds to Cart` · `Subscriptions` · `Subscribe Conversion Value` |
-| **New Subscriptions** (Compradores) | `<<PREENCHER: GID_SALES>>` | `Data` · `Nome` · `Email` · `Telefone` · `Produto` · `Oferta` · `Faturamento` · `Receita` · `Método de Pagamento` · `Campanha` · `Conjunto` · `Anúncio` · `UF` · `Cidade` · `Zip Code` · `Endereço` |
+| **Página 1** (Meta Ads — única fonte) | `0` | `Day` · `Campaign Name` · `Ad Set Name` · `Ad Name` · `Impressions` · `Link Clicks` · `Amount Spent` · `Messaging Conversations Started` |
 
 URL de export CSV: `https://docs.google.com/spreadsheets/d/<ID>/export?format=csv&gid=<GID>`
 
+> **Este cliente não tem abas de Conversas/Leads/Compradores** — só o
+> gerenciador de mídia paga. `build.py` não faz nenhum cruzamento por telefone
+> (removido do template original: `is_medico`, `build_sales_index`,
+> `canon_phone` etc. não existem nesta versão).
+
 ### Regra de Lead Qualificado (MQL)
-Coluna de qualificação (<<PREENCHER: nome da coluna de MQL, ex. "É médico?">>) == "Sim".
-Lógica em `build.py` → `is_medico`. O gráfico "Leads por especialidade" (`app.js`,
-`renderGeralCore`) colore verde/cinza pelo mesmo critério, usando a coluna
-`Especialidades`/`Especialidade` como dimensão.
+Não há segunda camada de qualificação nesta conta — só a coluna
+`Messaging Conversations Started`. Por isso `build.py::process()` sintetiza
+`leads[]` diretamente do Meta Ads: para cada linha, gera N leads (N = a coluna
+arredondada) com `camp/adset/ad/data` daquela linha e `q=1` sempre. Resultado:
+**Leads = MQLs = 100%** em toda a dashboard — é o esperado, não um bug.
 
-### Vendas & Faturamento (cruzamento com Compradores)
-`build.py` → `build_sales_index()` lê a aba **New Subscriptions** e indexa por
-**telefone** (normalizado, só dígitos) → lista de compras **não agregada**,
-uma entrada por linha: `[{d, fat, receita}, ...]` (`d` = data real daquela
-compra). Em `process()`, as linhas da **Conversas** são ordenadas pela **data
-já parseada** (`parse_date`, não a string bruta) para achar a **1ª conversa**
-(mais antiga de fato) de cada telefone; essa conversa define **apenas**
-camp/adset/ad da venda (o anúncio que trouxe aquele contato) — nunca a data.
-Cada compra vira um registro próprio em `DATA.sales[]`
-(`{d, camp, adset, ad, vendas:1, fat, receita}`) com a **data real da compra**.
-No navegador, `salesActive()` (`app.js`) filtra `sales[]` pela mesma data ativa
-que `leadsActive()`/`metaActive()`, e os três arrays (`fL`/`fM`/`fS`) se
-propagam juntos em `buildAgg`/`daily`/`totals`.
-
-**TODA venda entra na dash** (regra geral: "todas as vendas entram na Visão
-Geral; só as atribuídas ao Meta entram na aba de mídia paga"). O cruzamento
-Compradores × Conversas usa `canon_phone()` — **chave canônica** = DDD +
-últimos 8 dígitos, robusta a **DDI "55"** presente/ausente e ao **9º dígito**
-do celular. Quando o telefone bate com uma conversa, a venda recebe
-camp/adset/ad daquela conversa. Quando **não** bate, a venda **ainda conta nos
-totais/Visão Geral**, porém como `(sem campanha)` / `src="org"` — some apenas da
-quebra por campanha do Meta. `log_unmatched_sales()` loga no build quantas
-vendas ficaram sem anúncio de origem. **Não** usa as colunas `Compra Detectada`
-/ `Faturamento Detectado` já calculadas na planilha (decisão de projeto: cruzar
-do zero, mais robusto a erro de fórmula).
+### Vendas & Faturamento
+Não há aba de Compradores para cruzar. `DATA.sales` é sempre `[]` — todo o
+bloco de Vendas/Faturamento/CAC/ROAS aparece como "-" via o mecanismo já
+existente em `app.js::salesOf()` (`hasVd=false` quando `vendas===0 && fat===0`).
+Se o cliente conectar uma lista de compradores no futuro, reintroduzir
+`build_sales_index`/`canon_phone` do template original e popular `sales[]`.
 
 ### Imposto da mídia paga
-`TAX_FACTOR` em `build.py` (`<<PREENCHER: fator, ex. 1.13806>>`). O toggle
-"Imposto Meta" fica **ativo por padrão** (`STATE.tax=true` em `app.js`) e aplica
-o fator em todo o gasto/derivados (CPL, CPMQL, CAC etc.); desativar o toggle
-volta ao gasto sem imposto. Se o cliente não tiver imposto, use `TAX_FACTOR = 1.0`.
+`TAX_FACTOR = 1.1385` em `build.py` (13,85%). O toggle "Imposto Meta" fica
+**ativo por padrão** (`STATE.tax=true` em `app.js`) e aplica o fator em todo o
+gasto/derivados (CPL, CPMQL etc.); desativar o toggle volta ao gasto sem imposto.
 
 ### Convenções de campanha (do cliente)
-Todas as campanhas usam o prefixo `<<PREENCHER: MAIN_PRODUCT_PREFIX>>`
-(`MAIN_PRODUCT_PREFIX`), sem filtrar por sub-funil — mantém TODAS as campanhas
-no dashboard. Ajuste o prefixo e, se o cliente usar siglas de etapa
-(ex. `<<PREENCHER: siglas de etapa, se houver>>`), documente-as aqui. A Conversas
-já traz `Campanha`/`Conjunto`/`Anúncio` prontos (nomes idênticos ao
-`Campaign Name`/`Ad Set Name`/`Ad Name` do Meta Ads) — `build.py` só copia esses
-valores, sem precisar de UTM nessa aba.
+Sigla do funil: **`PRC | E2-CAP`** (`MAIN_PRODUCT_PREFIX`), sem filtrar por
+sub-funil — mantém TODAS as campanhas no dashboard. Exemplo real de
+`Campaign Name`: `PRC | E2-CAP | P1-QUENTE | LEAD | ABO | 2026-03-19 | WhatsApp / Dr João`.
+`Ad Set Name` varia por público dentro da mesma campanha (ex. "M 35-50 São
+Paulo" vs. "LAL 1% Lista de Paciente") — não são funis diferentes, é a
+dimensão usada no gráfico "Leads por público" (`app.js`, `renderGeralCore`,
+campo `l.adset`). O gráfico "Leads por dia da semana" usa `weekday(l.d)`; o
+gráfico "Leads por campanha" usa `l.camp` — nenhum dos dois lê mais
+`prof`/`bucket`/`plat` (campos do template original, não emitidos por este
+`build.py`).
 
 ## Arquitetura / arquivos
 
