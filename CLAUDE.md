@@ -86,19 +86,32 @@ URL de export CSV: `https://docs.google.com/spreadsheets/d/<ID>/export?format=cs
 > (removido do template original: `is_medico`, `build_sales_index`,
 > `canon_phone` etc. não existem nesta versão).
 
-### Regra de Lead Qualificado (MQL)
+### Métrica única: Conversas iniciadas no WhatsApp (sem MQL/Vendas/Faturamento na UI)
 Não há segunda camada de qualificação nesta conta — só a coluna
-`Messaging Conversations Started`. Por isso `build.py::process()` sintetiza
-`leads[]` diretamente do Meta Ads: para cada linha, gera N leads (N = a coluna
-arredondada) com `camp/adset/ad/data` daquela linha e `q=1` sempre. Resultado:
-**Leads = MQLs = 100%** em toda a dashboard — é o esperado, não um bug.
+`Messaging Conversations Started`. `build.py::process()` sintetiza `leads[]`
+diretamente do Meta Ads: para cada linha, gera N leads (N = a coluna
+arredondada) com `camp/adset/ad/data` daquela linha e `q=1` sempre
+(internamente Leads = MQLs = 100%). A pedido do cliente, a UI **não expõe**
+esse split nem o bloco de Vendas/Faturamento/CAC/ROAS — o funil (`app.js`,
+`renderGeralCore`/`renderMeta`) mostra só 5 métricas: **Conversas iniciadas ·
+Custo por Conversa Iniciada · Cliques no link · CTR · CPC**. As tabelas
+(diária, hierárquica Campanha→Conjunto→Anúncio, Top Anúncios) também foram
+reduzidas a `Gasto/CPM/CTR/CR/ConvLP/Conversas/CPL` — as colunas
+`Tx‑MQL/MQLs/CPMQL/ConvMQL/Vendas/CAC/Fat./Receita/ROAS` foram removidas dos
+`cols` de cada tabela (não das funções `derive()`/`salesOf()`, que continuam
+calculando esses campos internamente — só não são mais renderizados). O
+painel de Metas da aba Relatório também foi reduzido: só **Meta CPL**
+(`METAS.cpmql` — nome interno mantido, rótulo trocado para "CPL") e
+**Volume mín. amostral (conversas)** — o campo Meta CAC foi removido
+(`META_CAC`/`meta_cac` não existem mais em `build.py`). O donut "Taxa de
+qualificação por anúncio" e a tabela nominal "Leads qualificados" foram
+removidos nesta mesma limpeza (o segundo já tinha saído numa rodada anterior,
+por falta de nome/telefone).
 
-### Vendas & Faturamento
-Não há aba de Compradores para cruzar. `DATA.sales` é sempre `[]` — todo o
-bloco de Vendas/Faturamento/CAC/ROAS aparece como "-" via o mecanismo já
-existente em `app.js::salesOf()` (`hasVd=false` quando `vendas===0 && fat===0`).
-Se o cliente conectar uma lista de compradores no futuro, reintroduzir
-`build_sales_index`/`canon_phone` do template original e popular `sales[]`.
+Se o cliente pedir esses dados de volta no futuro (ou conectar uma lista de
+compradores), `DATA.sales` é sempre `[]` hoje — reintroduzir
+`build_sales_index`/`canon_phone` do template original para popular
+`sales[]`, e devolver as colunas/painel removidos acima.
 
 ### Imposto da mídia paga
 `TAX_FACTOR = 1.1385` em `build.py` (13,85%). O toggle "Imposto Meta" fica
@@ -111,9 +124,9 @@ sub-funil — mantém TODAS as campanhas no dashboard. Exemplo real de
 `Campaign Name`: `PRC | E2-CAP | P1-QUENTE | LEAD | ABO | 2026-03-19 | WhatsApp / Dr João`.
 `Ad Set Name` varia por público dentro da mesma campanha (ex. "M 35-50 São
 Paulo" vs. "LAL 1% Lista de Paciente") — não são funis diferentes, é a
-dimensão usada no gráfico "Leads por público" (`app.js`, `renderGeralCore`,
-campo `l.adset`). O gráfico "Leads por dia da semana" usa `weekday(l.d)`; o
-gráfico "Leads por campanha" usa `l.camp` — nenhum dos dois lê mais
+dimensão usada no gráfico "Conversas por público" (`app.js`, `renderGeralCore`,
+campo `l.adset`). O gráfico "Conversas por dia da semana" usa `weekday(l.d)`; o
+gráfico "Conversas por campanha" usa `l.camp` — nenhum dos dois lê mais
 `prof`/`bucket`/`plat` (campos do template original, não emitidos por este
 `build.py`).
 
