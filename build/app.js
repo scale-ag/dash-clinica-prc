@@ -529,11 +529,10 @@ function renderGeralCore(ids){
   const nOrg=fL.filter(l=>l.src==='org').length;
   const semUtm=fL.filter(l=>!l.utm).length, comUtm=t.leads-semUtm;
   const steps=[
-    ['Conversas iniciadas', intf(t.leads), [], false, 'hl-mql'],
-    ['Custo por Conversa Iniciada', brl(dv.cpl), []],
-    ['Cliques no link', intf(t.cl), []],
-    ['CTR', pct(dv.ctr), []],
-    ['CPC', brl(dv.cpc), []],
+    ['Gasto Total', brl(g), [], false, 'hl-gasto'],
+    ['Impressões', intf(t.im), [['CPM',brl(dv.cpm)]]],
+    ['Cliques', intf(t.cl), [['CTR',pct(dv.ctr)],['CPC',brl(dv.cpc)]]],
+    ['Conversas iniciadas no WhatsApp', intf(t.leads), [['CPL',brl(dv.cpl)]], false, 'hl-mql'],
   ];
   document.getElementById(ids.funnel).innerHTML=funnelHTML(steps);
   // ---- Mar05: métricas secundárias mais úteis (não repetem o funil) ----
@@ -882,11 +881,10 @@ function renderMeta(){
   const F=metaScope(null), fL=F.fL, fM=F.fM, fS=F.fS;   // KPIs, funil, graficos e tabela diaria
   const t=totals(fL,fM,fS), dv=derive(t), g=dv.gasto;
   const steps=[
-    ['Conversas iniciadas', intf(t.leads), [], false, 'hl-mql'],
-    ['Custo por Conversa Iniciada', brl(dv.cpl), []],
-    ['Cliques no link', intf(t.cl), []],
-    ['CTR', pct(dv.ctr), []],
-    ['CPC', brl(dv.cpc), []],
+    ['Gasto Total', brl(g), [], false, 'hl-gasto'],
+    ['Impressões', intf(t.im), [['CPM',brl(dv.cpm)]]],
+    ['Cliques', intf(t.cl), [['CTR',pct(dv.ctr)],['CPC',brl(dv.cpc)]]],
+    ['Conversas iniciadas no WhatsApp', intf(t.leads), [['CPL',brl(dv.cpl)]], false, 'hl-mql'],
   ];
   document.getElementById('metaFunnel').innerHTML=funnelHTML(steps);
 
