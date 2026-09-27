@@ -77,7 +77,8 @@ Spreadsheet ID: `1SrzEB16RhXoQm28tNRF4TcUmhYqaTJZBlq5xQCCRkLE` (planilha de míd
 
 | Aba | gid | Colunas usadas |
 |-----|-----|----------------|
-| **Página 1** (Meta Ads — única fonte) | `0` | `Day` · `Campaign Name` · `Ad Set Name` · `Ad Name` · `Impressions` · `Link Clicks` · `Amount Spent` · `Messaging Conversations Started` |
+| **Página 1** (Meta Ads) | `0` | `Day` · `Campaign Name` · `Ad Set Name` · `Ad Name` · `Impressions` · `Link Clicks` · `Amount Spent` · `Messaging Conversations Started` |
+| **📈 <mês>** (planilha de Controle de tráfego — ver "Seguidores") | descoberto pelo nome | `Data` · bloco `META — Seguidores`: `Invest. (R$)` · `Seguid.` |
 
 URL de export CSV: `https://docs.google.com/spreadsheets/d/<ID>/export?format=csv&gid=<GID>`
 
@@ -93,8 +94,9 @@ diretamente do Meta Ads: para cada linha, gera N leads (N = a coluna
 arredondada) com `camp/adset/ad/data` daquela linha e `q=1` sempre
 (internamente Leads = MQLs = 100%). A pedido do cliente, a UI **não expõe**
 esse split nem o bloco de Vendas/Faturamento/CAC/ROAS — o funil (`app.js`,
-`renderGeralCore`/`renderMeta`) mostra só 5 métricas: **Conversas iniciadas ·
-Custo por Conversa Iniciada · Cliques no link · CTR · CPC**. As tabelas
+`renderGeralCore`/`renderMeta`) é: **Gasto Total → Impressões (CPM) → Cliques
+(CTR, CPC) → Conversas iniciadas no WhatsApp (CPL) → Seguidores (Custo por
+Seguidor)** (ver "Seguidores" abaixo). As tabelas
 (diária, hierárquica Campanha→Conjunto→Anúncio, Top Anúncios) também foram
 reduzidas a `Gasto/CPM/CTR/CR/ConvLP/Conversas/CPL` — as colunas
 `Tx‑MQL/MQLs/CPMQL/ConvMQL/Vendas/CAC/Fat./Receita/ROAS` foram removidas dos
@@ -112,6 +114,28 @@ Se o cliente pedir esses dados de volta no futuro (ou conectar uma lista de
 compradores), `DATA.sales` é sempre `[]` hoje — reintroduzir
 `build_sales_index`/`canon_phone` do template original para popular
 `sales[]`, e devolver as colunas/painel removidos acima.
+
+### Seguidores (outra planilha — aba do mês atual)
+Planilha **"Clínica PRC | Controle de tráfego - 2026"**
+(`SEG_SPREADSHEET_ID = 1BZBBwaAN1wBy6bzDxeEN51CkMJ82He-ckhhOzYifrpY`), **uma aba
+por mês** (`📈 Abr`, `📈 Mai`, … `📈 Set`), 1 linha por dia. `build.py` lê
+**só a aba do mês atual** (BRT), bloco **"META — Seguidores"**: `Invest. (R$)`
+· `Seguid.` (ganhos no dia, não acumulado) · `CPS`. `load_seguidores()`:
+1. acha o gid da aba pelo nome no `htmlview` público (`gid_da_aba`),
+2. senão tenta o gviz pelo nome (`headers=4`),
+3. senão o gid fixo de `SEG_GIDS_CONHECIDOS` (hoje só `Set`).
+
+A aba é validada pelo **bloco "META — Seguidores"**, nunca pelo título (a aba
+Set ainda diz "Tráfego Diário — Ago", e o gviz devolve a 1ª aba em silêncio
+quando o nome não existe). Se a aba do mês não existir (ex.: dia 1º antes de
+criarem `📈 Out`), `seg=[]` e o card mostra "-" — o build **nunca** quebra por
+isso. O CPS da planilha **não é lido**: o front soma Invest e Seguidores do
+período e divide (`segStep` em `app.js`); aplica o toggle "Imposto Meta" como
+todo custo da dash (toggle desligado = mesmo número da planilha). Seguidores
+não têm campanha/conjunto/anúncio: com filtro por dimensão ativo na página
+Captura Meta Ads, o card mostra "-". Períodos fora do mês atual (ex.: "Mês
+passado") também mostram "-", porque só a aba do mês atual é carregada.
+Teste local: `--seg-file aba_mes.csv`.
 
 ### Imposto da mídia paga
 `TAX_FACTOR = 1.1385` em `build.py` (13,85%). O toggle "Imposto Meta" fica
