@@ -12,7 +12,7 @@ iniciadas) e é publicada no **GitHub Pages**. Reconstrói sozinha a cada
 
 ## O que ela mostra
 
-- **Métrica principal**: Conversas iniciadas no WhatsApp (Messaging Conversations Started), Custo por Conversa Iniciada, Cliques no link, CTR, CPC.
+- **Funil**: Gasto Total → Impressões (CPM) → Cliques (CTR, CPC) → Conversas iniciadas no WhatsApp (CPL) → Seguidores (Custo por Seguidor).
 - **Evolução diária**: gasto/dia, conversas/dia, CPL/dia.
 - **Distribuição de conversas**: por origem, por público (conjunto de anúncios), por dia da semana e por campanha.
 - **Hierarquia Campanha → Conjunto → Anúncio**: gasto, conversas, CPL por nível, com gráfico de custo por dia.
@@ -39,7 +39,13 @@ Planilha de Meta Ads da Clínica PRC
 | Página 1 (Meta Ads) | `0` | `Day` · `Campaign Name` · `Ad Set Name` · `Ad Name` · `Impressions` · `Link Clicks` · `Amount Spent` · `Messaging Conversations Started` |
 
 O build lê essa aba via **export CSV público** (`.../export?format=csv&gid=0`).
-**Nada é escrito de volta** na planilha.
+
+**Seguidores** vêm de outra planilha, "Clínica PRC | Controle de tráfego - 2026"
+(`1BZBBwaAN1wBy6bzDxeEN51CkMJ82He-ckhhOzYifrpY`): uma aba por mês (`📈 Set`,
+`📈 Out`…). O build lê só a **aba do mês atual**, bloco **META — Seguidores**
+(`Invest. (R$)` · `Seguid.`), e acha a aba nova sozinho quando o mês vira.
+
+**Nada é escrito de volta** nas planilhas.
 
 ---
 

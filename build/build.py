@@ -17,13 +17,15 @@ iniciadas), usada como proxy de Lead. Nao ha planilha de Conversas, Leads
   - sales[] fica sempre vazio: Vendas/Faturamento/CAC/ROAS aparecem como "-"
     em toda a dashboard ate existir uma fonte de compradores.
   - ad_links fica vazio: nao ha coluna de permalink de criativo nesta planilha.
+  - seg[] (Seguidores) vem de OUTRA planilha (Controle de trafego, aba do mes
+    atual, bloco "META — Seguidores") — ver load_seguidores().
 
 Este script apenas LE a planilha (export CSV publico) e emite os REGISTROS
 BRUTOS (leads[], meta[]) dentro do HTML. Todos os filtros, agregacoes, KPIs,
 tabelas e graficos sao calculados no navegador (client-side). Nunca escreve
 nada de volta.
 
-Teste local: --meta-file apontando para um CSV baixado.
+Teste local: --meta-file / --seg-file apontando para CSVs baixados.
 """
 from __future__ import annotations
 
@@ -35,12 +37,24 @@ import os
 import re
 import sys
 import unicodedata
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone, timedelta
+from html import unescape
 
 SPREADSHEET_ID = "1SrzEB16RhXoQm28tNRF4TcUmhYqaTJZBlq5xQCCRkLE"
 GID_META = "0"
 EXPORT_URL = "https://docs.google.com/spreadsheets/d/{sid}/export?format=csv&gid={gid}"
+
+# Seguidores: planilha "Clínica PRC | Controle de tráfego - 2026", uma aba por mês
+# ("📈 Abr", "📈 Mai", ... "📈 Set"), bloco "META — Seguidores" (Invest. · Seguid. · CPS),
+# uma linha por dia. Só a aba do MÊS ATUAL é lida.
+SEG_SPREADSHEET_ID = "1BZBBwaAN1wBy6bzDxeEN51CkMJ82He-ckhhOzYifrpY"
+MESES_PT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+# Fallback caso a descoberta da aba pelo nome falhe (abreviação do mês -> gid).
+SEG_GIDS_CONHECIDOS = {"Set": "1349189258"}
+HTMLVIEW_URL = "https://docs.google.com/spreadsheets/d/{sid}/htmlview"
+GVIZ_URL = "https://docs.google.com/spreadsheets/d/{sid}/gviz/tq?tqx=out:csv&headers=4&sheet={sheet}"
 
 # Identificação do cliente/conta (usada só em textos/relatórios — não afeta o cruzamento de dados).
 CLIENT_NAME = "Clínica PRC"
@@ -74,11 +88,14 @@ N_DIAS_CORTE = 5           # dias consecutivos acima do teto p/ considerar corte
 # --------------------------------------------------------------------------- #
 # Leitura
 # --------------------------------------------------------------------------- #
-def fetch_csv(url: str) -> list[list[str]]:
+def fetch_text(url: str) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": "dash-template-bot/1.0"})
     with urllib.request.urlopen(req, timeout=60) as resp:
-        raw = resp.read().decode("utf-8", errors="replace")
-    return list(csv.reader(io.StringIO(raw)))
+        return resp.read().decode("utf-8", errors="replace")
+
+
+def fetch_csv(url: str) -> list[list[str]]:
+    return list(csv.reader(io.StringIO(fetch_text(url))))
 
 
 def read_csv_file(path: str) -> list[list[str]]:
@@ -160,6 +177,89 @@ def cell(row, i):
     if i is None or i < 0 or i >= len(row):
         return ""
     return (row[i] or "").strip()
+
+
+# --------------------------------------------------------------------------- #
+# Seguidores (aba mensal da planilha de Controle de tráfego)
+# --------------------------------------------------------------------------- #
+def parse_seguidores(rows):
+    """Acha o bloco "META — Seguidores" na grade da aba e devolve [{d, sp, n}]
+    (1 por dia: investimento e seguidores GANHOS no dia). None = bloco não
+    encontrado (aba errada). Aceita tanto a grade exata do export por gid
+    (título da seção numa linha, cabeçalhos na de baixo) quanto a do gviz com
+    headers=4 (as 4 linhas de topo fundidas num único rótulo por coluna).
+    O CPS da planilha não é lido: somar CPS diário daria errado num período —
+    o front recalcula Invest ÷ Seguidores sobre os totais."""
+    for r, row in enumerate(rows[:10]):
+        for c, v in enumerate(row):
+            nv = norm(v)
+            if "meta" not in nv or "seguidores" not in nv:
+                continue
+            for hr in (r, r + 1):
+                if hr >= len(rows):
+                    continue
+                h = rows[hr]
+                if "invest" not in norm(cell(h, c)) or "seguid" not in norm(cell(h, c + 1)):
+                    continue
+                dcol = next((i for i, x in enumerate(h) if "data" in norm(x)), None)
+                if dcol is None:
+                    continue
+                out = []
+                for row2 in rows[hr + 1:]:
+                    d = parse_date(cell(row2, dcol))
+                    if d:
+                        out.append({"d": d, "sp": round(to_float(cell(row2, c)), 2),
+                                    "n": to_float(cell(row2, c + 1))})
+                return out
+    return None
+
+
+def gid_da_aba(sid: str, abbr: str) -> str | None:
+    """Descobre o gid da aba do mês pelo nome ("📈 Set" -> "set"), lendo a
+    lista de abas do htmlview público da planilha."""
+    html = fetch_text(HTMLVIEW_URL.format(sid=sid))
+    for gid, nome in re.findall(r'id="sheet-button-(\d+)"[^>]*>(?:\s*<[^>]+>)*\s*([^<]+)<', html):
+        if re.sub(r"[^a-z]", "", norm(unescape(nome))) == abbr.lower():
+            return gid
+    return None
+
+
+def load_seguidores(local: str | None, hoje: datetime) -> list[dict]:
+    """Lê a aba do mês atual. Nunca derruba o build: se a aba do mês ainda não
+    existir (ex.: dia 1º antes de criarem "📈 Out"), devolve [] e a dash mostra
+    Seguidores como "-". Tenta, em ordem: gid descoberto pelo nome da aba,
+    gviz pelo nome da aba e o gid fixo de SEG_GIDS_CONHECIDOS."""
+    if local:
+        return parse_seguidores(read_csv_file(local)) or []
+    abbr = MESES_PT[hoje.month - 1]
+    sid = SEG_SPREADSHEET_ID
+    tentativas = []
+    try:
+        gid = gid_da_aba(sid, abbr)
+        if gid:
+            tentativas.append((f"htmlview (gid {gid})", EXPORT_URL.format(sid=sid, gid=gid)))
+        else:
+            print(f"  seguidores: aba '📈 {abbr}' não achada no htmlview", file=sys.stderr)
+    except Exception as e:
+        print(f"  seguidores: htmlview falhou ({e})", file=sys.stderr)
+    tentativas.append((f"gviz aba '📈 {abbr}'",
+                       GVIZ_URL.format(sid=sid, sheet=urllib.parse.quote(f"📈 {abbr}"))))
+    if abbr in SEG_GIDS_CONHECIDOS:
+        tentativas.append((f"gid fixo {SEG_GIDS_CONHECIDOS[abbr]}",
+                           EXPORT_URL.format(sid=sid, gid=SEG_GIDS_CONHECIDOS[abbr])))
+    for nome, url in tentativas:
+        try:
+            seg = parse_seguidores(fetch_csv(url))
+        except Exception as e:
+            print(f"  seguidores: {nome} falhou ({e})", file=sys.stderr)
+            continue
+        if seg is not None:
+            print(f"  seguidores: aba '📈 {abbr}' lida via {nome} — {len(seg)} dias", file=sys.stderr)
+            return seg
+        print(f"  seguidores: {nome} não tem o bloco 'META — Seguidores'", file=sys.stderr)
+    print(f"  AVISO seguidores: aba do mês '📈 {abbr}' não encontrada — Seguidores ficam '-'",
+          file=sys.stderr)
+    return []
 
 
 # --------------------------------------------------------------------------- #
@@ -292,6 +392,7 @@ def render(data, template_path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--meta-file", help="CSV local da aba de Meta Ads (Página 1)")
+    ap.add_argument("--seg-file", help="CSV local da aba mensal de Controle de tráfego (bloco META — Seguidores)")
     ap.add_argument("--template", default="build/template.html")
     ap.add_argument("--out", default="dist/index.html")
     args = ap.parse_args()
@@ -299,6 +400,7 @@ def main():
     meta_rows = load_rows(EXPORT_URL.format(sid=SPREADSHEET_ID, gid=GID_META), args.meta_file)
 
     data = process(meta_rows)
+    data["seg"] = load_seguidores(args.seg_file, datetime.now(BRT))
 
     # Insights de Tráfego (texto pré-escrito) — lidos do arquivo versionado ao
     # lado do template. Sem chamada de API no build.
@@ -315,6 +417,9 @@ def main():
     print(f"  periodo   : {b['date_min']} -> {b['date_max']}", file=sys.stderr)
     print(f"  leads     : {len(data['leads'])}  (conversas iniciadas)  qualificados: {q}", file=sys.stderr)
     print(f"  meta      : {len(data['meta'])} linhas", file=sys.stderr)
+    seg = data["seg"]
+    print(f"  seguidores: {len(seg)} dias  total {sum(s['n'] for s in seg):.0f}  "
+          f"invest R$ {sum(s['sp'] for s in seg):,.2f}", file=sys.stderr)
     print(f"  out       : {args.out}", file=sys.stderr)
 
 

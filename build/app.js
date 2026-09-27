@@ -1,6 +1,6 @@
 "use strict";
 const DATA = JSON.parse(document.getElementById('payload').textContent);
-const LEADS = DATA.leads, META = DATA.meta, SALES = DATA.sales||[], B = DATA.build;
+const LEADS = DATA.leads, META = DATA.meta, SALES = DATA.sales||[], SEG = DATA.seg||[], B = DATA.build;
 const TAX = B.tax_factor || 1.0;
 
 /* ---------------- format ---------------- */
@@ -43,6 +43,18 @@ const metaActive  = ()=> META.filter(m=>dateActive(m.d));
 /* vendas: registro por COMPRA, filtrado pela data REAL da compra (nunca pela
    data da conversa que originou o contato) — ver build.py::process (sales[]). */
 const salesActive = ()=> SALES.filter(s=>dateActive(s.d));
+const segActive = ()=> SEG.filter(s=>dateActive(s.d));
+
+/* Seguidores (aba do mês atual da planilha de Controle de tráfego). Sem dias
+   carregados no período — ou com filtro de campanha/conjunto/anúncio, que não
+   se aplica a seguidores — mostra "-" em vez de um 0 enganoso. Custo por
+   Seguidor recalculado sobre os totais (nunca soma de CPS diário). */
+function segStep(na){
+  const fS=segActive();
+  if(na||!fS.length) return ['Seguidores','-',[['Custo por Seguidor','-']],true];
+  let sp=0,n=0; fS.forEach(r=>{sp+=r.sp; n+=r.n;});
+  return ['Seguidores', intf(n), [['Custo por Seguidor', n?brl(sp*taxf()/n):'-']]];
+}
 
 /* ---------------- aggregation ---------------- */
 function derive(a){
@@ -533,6 +545,7 @@ function renderGeralCore(ids){
     ['Impressões', intf(t.im), [['CPM',brl(dv.cpm)]]],
     ['Cliques', intf(t.cl), [['CTR',pct(dv.ctr)],['CPC',brl(dv.cpc)]]],
     ['Conversas iniciadas no WhatsApp', intf(t.leads), [['CPL',brl(dv.cpl)]], false, 'hl-mql'],
+    segStep(false),
   ];
   document.getElementById(ids.funnel).innerHTML=funnelHTML(steps);
   // ---- Mar05: métricas secundárias mais úteis (não repetem o funil) ----
@@ -885,6 +898,7 @@ function renderMeta(){
     ['Impressões', intf(t.im), [['CPM',brl(dv.cpm)]]],
     ['Cliques', intf(t.cl), [['CTR',pct(dv.ctr)],['CPC',brl(dv.cpc)]]],
     ['Conversas iniciadas no WhatsApp', intf(t.leads), [['CPL',brl(dv.cpl)]], false, 'hl-mql'],
+    segStep(STATE.mSelC.size||STATE.mSelA.size||STATE.mSelAd.size),
   ];
   document.getElementById('metaFunnel').innerHTML=funnelHTML(steps);
 
