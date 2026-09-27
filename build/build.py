@@ -226,8 +226,11 @@ def load_seguidores(local: str | None, hoje: datetime) -> list[dict]:
     coluna). A aba certa é a que tem o bloco "META — Seguidores" com datas do
     MÊS ATUAL — não depende do nome nem do título (a aba Set diz "Ago" no
     título). Tenta primeiro o gid de SEG_GIDS_CONHECIDOS; senão varre os gids
-    do htmlview. Nunca derruba o build: sem aba do mês (ex.: dia 1º antes de
-    criarem "📈 Out"), devolve [] e a dash mostra Seguidores como "-"."""
+    do htmlview. A lista do htmlview é buscada em TODO build (1 requisição
+    leve) e o log diz se o gid do mês aparece nela — assim cada build prova que
+    a descoberta vai funcionar na virada do mês, sem esperar o dia 1º.
+    Nunca derruba o build: sem aba do mês (ex.: dia 1º antes de criarem
+    "📈 Out"), devolve [] e a dash mostra Seguidores como "-"."""
     if local:
         return parse_seguidores(read_csv_file(local)) or []
     abbr = MESES_PT[hoje.month - 1]
@@ -248,23 +251,16 @@ def load_seguidores(local: str | None, hoje: datetime) -> list[dict]:
         print(f"  seguidores: aba do mês '📈 {abbr}' = gid {gid} — {len(seg)} dias", file=sys.stderr)
         return seg
 
-    testados = set()
-    conhecido = SEG_GIDS_CONHECIDOS.get(abbr)
-    if conhecido:
-        testados.add(conhecido)
-        seg = tenta(conhecido)
-        if seg is not None:
-            return seg
     try:
         gids = gids_da_planilha(sid)
-        print(f"  seguidores: {len(gids)} abas no htmlview", file=sys.stderr)
     except Exception as e:
         print(f"  seguidores: htmlview falhou ({e})", file=sys.stderr)
         gids = []
-    for gid in gids:
-        if gid in testados:
-            continue
-        testados.add(gid)
+    conhecido = SEG_GIDS_CONHECIDOS.get(abbr)
+    print(f"  seguidores: {len(gids)} abas no htmlview"
+          + (f" (gid do mês {conhecido} na lista: {'sim' if conhecido in gids else 'NÃO'})" if conhecido else ""),
+          file=sys.stderr)
+    for gid in dict.fromkeys(([conhecido] if conhecido else []) + gids):
         seg = tenta(gid)
         if seg is not None:
             return seg
