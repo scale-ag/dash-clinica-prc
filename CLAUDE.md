@@ -120,16 +120,19 @@ Planilha **"Clínica PRC | Controle de tráfego - 2026"**
 (`SEG_SPREADSHEET_ID = 1BZBBwaAN1wBy6bzDxeEN51CkMJ82He-ckhhOzYifrpY`), **uma aba
 por mês** (`📈 Abr`, `📈 Mai`, … `📈 Set`), 1 linha por dia. `build.py` lê
 **só a aba do mês atual** (BRT), bloco **"META — Seguidores"**: `Invest. (R$)`
-· `Seguid.` (ganhos no dia, não acumulado) · `CPS`. `load_seguidores()`:
-1. acha o gid da aba pelo nome no `htmlview` público (`gid_da_aba`),
-2. senão tenta o gviz pelo nome (`headers=4`),
-3. senão o gid fixo de `SEG_GIDS_CONHECIDOS` (hoje só `Set`).
+· `Seguid.` (ganhos no dia, não acumulado) · `CPS`. `load_seguidores()` lê
+sempre pelo **export CSV por gid** (grade exata):
+1. tenta o gid de `SEG_GIDS_CONHECIDOS` (hoje só `Set`);
+2. senão varre os gids listados no `htmlview` público (`gids_da_planilha`).
 
-A aba é validada pelo **bloco "META — Seguidores"**, nunca pelo título (a aba
-Set ainda diz "Tráfego Diário — Ago", e o gviz devolve a 1ª aba em silêncio
-quando o nome não existe). Se a aba do mês não existir (ex.: dia 1º antes de
-criarem `📈 Out`), `seg=[]` e o card mostra "-" — o build **nunca** quebra por
-isso. O CPS da planilha **não é lido**: o front soma Invest e Seguidores do
+A aba certa é a que tem o **bloco "META — Seguidores" com datas do mês atual**
+— nunca pelo nome/título (a aba Set ainda diz "Tráfego Diário — Ago"; uma
+cópia da Set ainda não atualizada é rejeitada em outubro). **Não usar o gviz**
+(`/gviz/tq`): ele infere o tipo de cada coluna e zera células — na 1ª versão
+leu 0 seguidores e só 8 dias de investimento. Se a aba do mês não existir (ex.:
+dia 1º antes de criarem `📈 Out`), `seg=[]` e o card mostra "-" — o build
+**nunca** quebra por isso. Ao ter o gid de uma aba nova, dá pra somá-lo em
+`SEG_GIDS_CONHECIDOS` para economizar requisições (opcional). O CPS da planilha **não é lido**: o front soma Invest e Seguidores do
 período e divide (`segStep` em `app.js`); aplica o toggle "Imposto Meta" como
 todo custo da dash (toggle desligado = mesmo número da planilha). Seguidores
 não têm campanha/conjunto/anúncio: com filtro por dimensão ativo na página
