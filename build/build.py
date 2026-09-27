@@ -51,7 +51,7 @@ SEG_SPREADSHEET_ID = "1BZBBwaAN1wBy6bzDxeEN51CkMJ82He-ckhhOzYifrpY"
 MESES_PT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
 # gid já conhecido de cada aba mensal (abreviação do mês -> gid) — tentado
 # primeiro; se o mês não estiver aqui, o gid é descoberto no htmlview.
-SEG_GIDS_CONHECIDOS = {"Set": "1349189258"}
+SEG_GIDS_CONHECIDOS = {}  # TESTE TEMPORARIO: forca a descoberta pelo htmlview
 HTMLVIEW_URL = "https://docs.google.com/spreadsheets/d/{sid}/htmlview"
 
 # Identificação do cliente/conta (usada só em textos/relatórios — não afeta o cruzamento de dados).
