@@ -37,10 +37,8 @@ import os
 import re
 import sys
 import unicodedata
-import urllib.parse
 import urllib.request
 from datetime import datetime, timezone, timedelta
-from html import unescape
 
 SPREADSHEET_ID = "1SrzEB16RhXoQm28tNRF4TcUmhYqaTJZBlq5xQCCRkLE"
 GID_META = "0"
@@ -51,10 +49,10 @@ EXPORT_URL = "https://docs.google.com/spreadsheets/d/{sid}/export?format=csv&gid
 # uma linha por dia. Só a aba do MÊS ATUAL é lida.
 SEG_SPREADSHEET_ID = "1BZBBwaAN1wBy6bzDxeEN51CkMJ82He-ckhhOzYifrpY"
 MESES_PT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
-# Fallback caso a descoberta da aba pelo nome falhe (abreviação do mês -> gid).
+# gid já conhecido de cada aba mensal (abreviação do mês -> gid) — tentado
+# primeiro; se o mês não estiver aqui, o gid é descoberto no htmlview.
 SEG_GIDS_CONHECIDOS = {"Set": "1349189258"}
 HTMLVIEW_URL = "https://docs.google.com/spreadsheets/d/{sid}/htmlview"
-GVIZ_URL = "https://docs.google.com/spreadsheets/d/{sid}/gviz/tq?tqx=out:csv&headers=4&sheet={sheet}"
 
 # Identificação do cliente/conta (usada só em textos/relatórios — não afeta o cruzamento de dados).
 CLIENT_NAME = "Clínica PRC"
@@ -185,9 +183,8 @@ def cell(row, i):
 def parse_seguidores(rows):
     """Acha o bloco "META — Seguidores" na grade da aba e devolve [{d, sp, n}]
     (1 por dia: investimento e seguidores GANHOS no dia). None = bloco não
-    encontrado (aba errada). Aceita tanto a grade exata do export por gid
-    (título da seção numa linha, cabeçalhos na de baixo) quanto a do gviz com
-    headers=4 (as 4 linhas de topo fundidas num único rótulo por coluna).
+    encontrado (aba errada). Título da seção numa linha e cabeçalhos
+    (Invest. · Seguid.) na mesma linha ou na de baixo; data na coluna "Data".
     O CPS da planilha não é lido: somar CPS diário daria errado num período —
     o front recalcula Invest ÷ Seguidores sobre os totais."""
     for r, row in enumerate(rows[:10]):
@@ -214,50 +211,64 @@ def parse_seguidores(rows):
     return None
 
 
-def gid_da_aba(sid: str, abbr: str) -> str | None:
-    """Descobre o gid da aba do mês pelo nome ("📈 Set" -> "set"), lendo a
-    lista de abas do htmlview público da planilha."""
+def gids_da_planilha(sid: str) -> list[str]:
+    """Todos os gids de aba que aparecem no htmlview público da planilha, em
+    ordem e sem repetição. Não depende do nome da aba (o emoji "📈" pode vir
+    escapado de várias formas) — a aba certa é escolhida pelo conteúdo."""
     html = fetch_text(HTMLVIEW_URL.format(sid=sid))
-    for gid, nome in re.findall(r'id="sheet-button-(\d+)"[^>]*>(?:\s*<[^>]+>)*\s*([^<]+)<', html):
-        if re.sub(r"[^a-z]", "", norm(unescape(nome))) == abbr.lower():
-            return gid
-    return None
+    achados = re.findall(r'(?:gid(?:=|\\x3d|\\u003d|%3D)|sheet-button-|gid"?\s*:\s*")(\d+)', html)
+    return list(dict.fromkeys(achados))
 
 
 def load_seguidores(local: str | None, hoje: datetime) -> list[dict]:
-    """Lê a aba do mês atual. Nunca derruba o build: se a aba do mês ainda não
-    existir (ex.: dia 1º antes de criarem "📈 Out"), devolve [] e a dash mostra
-    Seguidores como "-". Tenta, em ordem: gid descoberto pelo nome da aba,
-    gviz pelo nome da aba e o gid fixo de SEG_GIDS_CONHECIDOS."""
+    """Lê a aba do mês atual pelo export CSV por gid (grade exata, como é
+    exibida — o gviz foi descartado porque zera células ao inferir o tipo da
+    coluna). A aba certa é a que tem o bloco "META — Seguidores" com datas do
+    MÊS ATUAL — não depende do nome nem do título (a aba Set diz "Ago" no
+    título). Tenta primeiro o gid de SEG_GIDS_CONHECIDOS; senão varre os gids
+    do htmlview. Nunca derruba o build: sem aba do mês (ex.: dia 1º antes de
+    criarem "📈 Out"), devolve [] e a dash mostra Seguidores como "-"."""
     if local:
         return parse_seguidores(read_csv_file(local)) or []
     abbr = MESES_PT[hoje.month - 1]
+    mes = hoje.strftime("%Y-%m")
     sid = SEG_SPREADSHEET_ID
-    tentativas = []
+
+    def tenta(gid):
+        try:
+            seg = parse_seguidores(fetch_csv(EXPORT_URL.format(sid=sid, gid=gid)))
+        except Exception as e:
+            print(f"  seguidores: gid {gid} falhou ({e})", file=sys.stderr)
+            return None
+        if not seg:
+            return None
+        no_mes = sum(1 for s in seg if s["d"].startswith(mes))
+        if no_mes * 2 < len(seg):
+            return None
+        print(f"  seguidores: aba do mês '📈 {abbr}' = gid {gid} — {len(seg)} dias", file=sys.stderr)
+        return seg
+
+    testados = set()
+    conhecido = SEG_GIDS_CONHECIDOS.get(abbr)
+    if conhecido:
+        testados.add(conhecido)
+        seg = tenta(conhecido)
+        if seg is not None:
+            return seg
     try:
-        gid = gid_da_aba(sid, abbr)
-        if gid:
-            tentativas.append((f"htmlview (gid {gid})", EXPORT_URL.format(sid=sid, gid=gid)))
-        else:
-            print(f"  seguidores: aba '📈 {abbr}' não achada no htmlview", file=sys.stderr)
+        gids = gids_da_planilha(sid)
+        print(f"  seguidores: {len(gids)} abas no htmlview", file=sys.stderr)
     except Exception as e:
         print(f"  seguidores: htmlview falhou ({e})", file=sys.stderr)
-    tentativas.append((f"gviz aba '📈 {abbr}'",
-                       GVIZ_URL.format(sid=sid, sheet=urllib.parse.quote(f"📈 {abbr}"))))
-    if abbr in SEG_GIDS_CONHECIDOS:
-        tentativas.append((f"gid fixo {SEG_GIDS_CONHECIDOS[abbr]}",
-                           EXPORT_URL.format(sid=sid, gid=SEG_GIDS_CONHECIDOS[abbr])))
-    for nome, url in tentativas:
-        try:
-            seg = parse_seguidores(fetch_csv(url))
-        except Exception as e:
-            print(f"  seguidores: {nome} falhou ({e})", file=sys.stderr)
+        gids = []
+    for gid in gids:
+        if gid in testados:
             continue
+        testados.add(gid)
+        seg = tenta(gid)
         if seg is not None:
-            print(f"  seguidores: aba '📈 {abbr}' lida via {nome} — {len(seg)} dias", file=sys.stderr)
             return seg
-        print(f"  seguidores: {nome} não tem o bloco 'META — Seguidores'", file=sys.stderr)
-    print(f"  AVISO seguidores: aba do mês '📈 {abbr}' não encontrada — Seguidores ficam '-'",
+    print(f"  AVISO seguidores: nenhuma aba com 'META — Seguidores' de {mes} — Seguidores ficam '-'",
           file=sys.stderr)
     return []
 
