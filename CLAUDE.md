@@ -95,8 +95,8 @@ arredondada) com `camp/adset/ad/data` daquela linha e `q=1` sempre
 (internamente Leads = MQLs = 100%). A pedido do cliente, a UI **não expõe**
 esse split nem o bloco de Vendas/Faturamento/CAC/ROAS — o funil (`app.js`,
 `renderGeralCore`/`renderMeta`) é: **Gasto Total → Impressões (CPM) → Cliques
-(CTR, CPC) → Conversas iniciadas no WhatsApp (CPL) → Seguidores (Custo por
-Seguidor)** (ver "Seguidores" abaixo). As tabelas
+(CTR, CPC) → Conversas iniciadas no WhatsApp (CPL)**. Seguidores ficam numa
+**seção própria "Seguidores"**, fora do funil de leads (ver abaixo). As tabelas
 (diária, hierárquica Campanha→Conjunto→Anúncio, Top Anúncios) também foram
 reduzidas a `Gasto/CPM/CTR/CR/ConvLP/Conversas/CPL` — as colunas
 `Tx‑MQL/MQLs/CPMQL/ConvMQL/Vendas/CAC/Fat./Receita/ROAS` foram removidas dos
@@ -132,11 +132,15 @@ cópia da Set ainda não atualizada é rejeitada em outubro). **Não usar o gviz
 leu 0 seguidores e só 8 dias de investimento. Se a aba do mês não existir (ex.:
 dia 1º antes de criarem `📈 Out`), `seg=[]` e o card mostra "-" — o build
 **nunca** quebra por isso. Ao ter o gid de uma aba nova, dá pra somá-lo em
-`SEG_GIDS_CONHECIDOS` para economizar requisições (opcional). O CPS da planilha **não é lido**: o front soma Invest e Seguidores do
-período e divide (`segStep` em `app.js`); aplica o toggle "Imposto Meta" como
+`SEG_GIDS_CONHECIDOS` para economizar requisições (opcional). Na UI é uma **seção separada "Seguidores"** (2 cards: Seguidores · Custo
+por Seguidor) logo abaixo do funil nas 3 páginas (`renderSeg` em `app.js`,
+ids `geralSeg`/`metaSeg`/`relSeg`) — **nunca dentro do funil de leads**, a
+pedido do cliente. O CPS da planilha **não é lido**: o front soma Invest e
+Seguidores do período e divide; aplica o toggle "Imposto Meta" como
 todo custo da dash (toggle desligado = mesmo número da planilha). Seguidores
 não têm campanha/conjunto/anúncio: com filtro por dimensão ativo na página
-Captura Meta Ads, o card mostra "-". Períodos fora do mês atual (ex.: "Mês
+Captura Meta Ads, os cards mostram "-". O intervalo do "Todo período" inclui
+os dias de seguidores com movimento (dias futuros zerados não contam). Períodos fora do mês atual (ex.: "Mês
 passado") também mostram "-", porque só a aba do mês atual é carregada.
 Teste local: `--seg-file aba_mes.csv`.
 

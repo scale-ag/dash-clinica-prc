@@ -49,11 +49,18 @@ const segActive = ()=> SEG.filter(s=>dateActive(s.d));
    carregados no período — ou com filtro de campanha/conjunto/anúncio, que não
    se aplica a seguidores — mostra "-" em vez de um 0 enganoso. Custo por
    Seguidor recalculado sobre os totais (nunca soma de CPS diário). */
-function segStep(na){
+function renderSeg(id, filtroDim){
+  const el=document.getElementById(id); if(!el) return;
   const fS=segActive();
-  if(na||!fS.length) return ['Seguidores','-',[['Custo por Seguidor','-']],true];
-  let sp=0,n=0; fS.forEach(r=>{sp+=r.sp; n+=r.n;});
-  return ['Seguidores', intf(n), [['Custo por Seguidor', n?brl(sp*taxf()/n):'-']]];
+  let seg='-', cps='-', aux=filtroDim?'não se aplica ao filtro por campanha':'sem dados no período';
+  if(!filtroDim && fS.length){
+    let sp=0,n=0; fS.forEach(r=>{sp+=r.sp; n+=r.n;});
+    seg=intf(n); cps=n?brl(sp*taxf()/n):'-'; aux='';
+  }
+  el.innerHTML=[
+    {label:'Seguidores',val:seg,aux:aux||'novos no período'},
+    {label:'Custo por Seguidor',val:cps,aux:aux||'investimento ÷ seguidores'},
+  ].map(kpiCard).join('');
 }
 
 /* ---------------- aggregation ---------------- */
@@ -530,8 +537,8 @@ function kpiCard(k){ return `<div class="kpi ${k.hero?'hero':''}"><div class="kl
 /* ---------------- PAGE 1: Visão Geral ---------------- */
 /* IDs dos elementos por página — a Visão Geral e o Relatório compartilham o
    MESMO corpo (renderGeralCore), só mudam os alvos no DOM. */
-const GERAL_IDS={funnel:'geralFunnel',kpis2:'geralKpis2',combo:'gCombo',source:'gSource',bucket:'gBucket',plat:'gPlat',prof:'gProf',daily:'gDaily'};
-const REL_IDS  ={funnel:'relFunnel', kpis2:'relKpis2', combo:'rCombo',source:'rSource',bucket:'rBucket',plat:'rPlat',prof:'rProf',daily:'rDaily'};
+const GERAL_IDS={funnel:'geralFunnel',seg:'geralSeg',kpis2:'geralKpis2',combo:'gCombo',source:'gSource',bucket:'gBucket',plat:'gPlat',prof:'gProf',daily:'gDaily'};
+const REL_IDS  ={funnel:'relFunnel', seg:'relSeg', kpis2:'relKpis2', combo:'rCombo',source:'rSource',bucket:'rBucket',plat:'rPlat',prof:'rProf',daily:'rDaily'};
 function renderGeral(){ renderGeralCore(GERAL_IDS); }
 function renderGeralCore(ids){
   const fL=leadsActive(), fM=metaActive(), fS=salesActive();
@@ -545,9 +552,9 @@ function renderGeralCore(ids){
     ['Impressões', intf(t.im), [['CPM',brl(dv.cpm)]]],
     ['Cliques', intf(t.cl), [['CTR',pct(dv.ctr)],['CPC',brl(dv.cpc)]]],
     ['Conversas iniciadas no WhatsApp', intf(t.leads), [['CPL',brl(dv.cpl)]], false, 'hl-mql'],
-    segStep(false),
   ];
   document.getElementById(ids.funnel).innerHTML=funnelHTML(steps);
+  renderSeg(ids.seg, false);
   // ---- Mar05: métricas secundárias mais úteis (não repetem o funil) ----
   const dd=daily(fL,fM,fS), nDays=dd.length||1;
   const adAgg=buildAgg(fL,fM,fS,'ad');
@@ -898,9 +905,9 @@ function renderMeta(){
     ['Impressões', intf(t.im), [['CPM',brl(dv.cpm)]]],
     ['Cliques', intf(t.cl), [['CTR',pct(dv.ctr)],['CPC',brl(dv.cpc)]]],
     ['Conversas iniciadas no WhatsApp', intf(t.leads), [['CPL',brl(dv.cpl)]], false, 'hl-mql'],
-    segStep(STATE.mSelC.size||STATE.mSelA.size||STATE.mSelAd.size),
   ];
   document.getElementById('metaFunnel').innerHTML=funnelHTML(steps);
+  renderSeg('metaSeg', !!(STATE.mSelC.size||STATE.mSelA.size||STATE.mSelAd.size));
 
   comboChart('mCombo', daily(fL,fM,fS));
   // barras de conversas por anúncio

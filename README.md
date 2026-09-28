@@ -12,7 +12,8 @@ iniciadas) e é publicada no **GitHub Pages**. Reconstrói sozinha a cada
 
 ## O que ela mostra
 
-- **Funil**: Gasto Total → Impressões (CPM) → Cliques (CTR, CPC) → Conversas iniciadas no WhatsApp (CPL) → Seguidores (Custo por Seguidor).
+- **Funil**: Gasto Total → Impressões (CPM) → Cliques (CTR, CPC) → Conversas iniciadas no WhatsApp (CPL).
+- **Seguidores** (seção própria, fora do funil): Seguidores e Custo por Seguidor.
 - **Evolução diária**: gasto/dia, conversas/dia, CPL/dia.
 - **Distribuição de conversas**: por origem, por público (conjunto de anúncios), por dia da semana e por campanha.
 - **Hierarquia Campanha → Conjunto → Anúncio**: gasto, conversas, CPL por nível, com gráfico de custo por dia.

@@ -408,6 +408,13 @@ def main():
 
     data = process(meta_rows)
     data["seg"] = load_seguidores(args.seg_file, datetime.now(BRT))
+    # "Todo período" cobre também dias de seguidores com movimento (dias futuros
+    # já pré-listados na aba, ainda zerados, não esticam o intervalo).
+    b = data["build"]
+    dias = [x for x in (b["date_min"], b["date_max"]) if x] + \
+           [s["d"] for s in data["seg"] if s["n"] or s["sp"]]
+    if dias:
+        b["date_min"], b["date_max"] = min(dias), max(dias)
 
     # Insights de Tráfego (texto pré-escrito) — lidos do arquivo versionado ao
     # lado do template. Sem chamada de API no build.
