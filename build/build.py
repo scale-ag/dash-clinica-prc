@@ -434,6 +434,11 @@ def main():
     seg = data["seg"]
     print(f"  seguidores: {len(seg)} dias  total {sum(s['n'] for s in seg):.0f}  "
           f"invest R$ {sum(s['sp'] for s in seg):,.2f}", file=sys.stderr)
+    hoje = datetime.now(BRT).strftime("%Y-%m-%d")
+    ultimos = [s for s in seg if s["d"] <= hoje][-5:]
+    if ultimos:
+        print("  seguidores últimos dias: " + " | ".join(
+            f"{s['d'][8:]}/{s['d'][5:7]} {s['n']:.0f} (R$ {s['sp']:.2f})" for s in ultimos), file=sys.stderr)
     print(f"  out       : {args.out}", file=sys.stderr)
 
 
