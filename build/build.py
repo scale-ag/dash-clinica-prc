@@ -248,7 +248,6 @@ def load_seguidores(local: str | None, hoje: datetime) -> list[dict]:
         no_mes = sum(1 for s in seg if s["d"].startswith(mes))
         if no_mes * 2 < len(seg):
             return None
-        print(f"  seguidores: aba do mês '📈 {abbr}' = gid {gid} — {len(seg)} dias", file=sys.stderr)
         return seg
 
     try:
@@ -260,10 +259,25 @@ def load_seguidores(local: str | None, hoje: datetime) -> list[dict]:
     print(f"  seguidores: {len(gids)} abas no htmlview"
           + (f" (gid do mês {conhecido} na lista: {'sim' if conhecido in gids else 'NÃO'})" if conhecido else ""),
           file=sys.stderr)
+    # A planilha pode ter MAIS DE UMA aba do mês (ex.: "📈 Out" e uma cópia
+    # " 📈 Out" com espaço, vazia). Avalia todas e fica com a que tem mais
+    # dados preenchidos (dias com movimento, depois seguidores + investimento).
+    def peso(seg):
+        ativos = [s for s in seg if s["n"] or s["sp"]]
+        return (len(ativos), sum(s["n"] for s in ativos), sum(s["sp"] for s in ativos))
+
+    melhor, melhor_gid = None, None
     for gid in dict.fromkeys(([conhecido] if conhecido else []) + gids):
         seg = tenta(gid)
-        if seg is not None:
-            return seg
+        if seg is None:
+            continue
+        print(f"  seguidores: candidata '📈 {abbr}' gid {gid} — {len(seg)} dias, "
+              f"{peso(seg)[0]} com movimento", file=sys.stderr)
+        if melhor is None or peso(seg) > peso(melhor):
+            melhor, melhor_gid = seg, gid
+    if melhor is not None:
+        print(f"  seguidores: aba do mês '📈 {abbr}' = gid {melhor_gid} — {len(melhor)} dias", file=sys.stderr)
+        return melhor
     print(f"  AVISO seguidores: nenhuma aba com 'META — Seguidores' de {mes} — Seguidores ficam '-'",
           file=sys.stderr)
     return []

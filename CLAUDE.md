@@ -127,7 +127,9 @@ sempre pelo **export CSV por gid** (grade exata):
 
 A aba certa é a que tem o **bloco "META — Seguidores" com datas do mês atual**
 — nunca pelo nome/título (a aba Set ainda diz "Tráfego Diário — Ago"; uma
-cópia da Set ainda não atualizada é rejeitada em outubro). **Não usar o gviz**
+cópia da Set ainda não atualizada é rejeitada em outubro). A planilha pode ter **mais de uma aba do mês** (ex.: `📈 Out` e
+uma cópia ` 📈 Out` com espaço, vazia): o build avalia todas e fica com a
+que tem mais dias preenchidos — o log lista cada `candidata`. **Não usar o gviz**
 (`/gviz/tq`): ele infere o tipo de cada coluna e zera células — na 1ª versão
 leu 0 seguidores e só 8 dias de investimento. Se a aba do mês não existir (ex.:
 dia 1º antes de criarem `📈 Out`), `seg=[]` e o card mostra "-" — o build
