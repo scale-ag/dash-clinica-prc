@@ -22,6 +22,7 @@
     <div class="nav-item active" data-page="geral"><span class="ic">◱</span> Visão Geral de Leads</div>
     <div class="nav-item" data-page="meta"><span class="ic">◨</span> Captura Meta Ads</div>
     <div class="nav-item" data-page="rel"><span class="ic">▤</span> Relatório</div>
+    <div class="nav-item" data-page="lp"><span class="ic">◧</span> Funil landing page</div>
     <div class="foot">Somente leitura · atualiza ~30 min<br><span id="buildFoot"></span></div>
   </aside>
 
@@ -214,6 +215,53 @@
         <h2 class="sec-title">Insights de Tráfego</h2>
         <div class="rel-brief" id="relBrief"></div>
         <p class="note" id="relBriefStamp"></p>
+      </div>
+
+      <!-- ===================== PÁGINA 4: FUNIL LANDING PAGE ===================== -->
+      <div class="page" id="page-lp">
+        <h2 class="sec-title">Funil landing page &amp; evolução diária</h2>
+        <div class="grid funnel-grid">
+          <div class="card"><div class="funnel" id="lpFunnel"></div>
+            <p class="note">Leads = formulários enviados na landing page (planilha Novo funil de agendamentos). Gasto = campanhas do Meta Ads cujo nome aparece no <b>utm_campaign</b> dos leads — elas não entram nas outras abas.</p>
+          </div>
+          <div class="panel">
+            <div class="panel-chart"><h3>Evolução diária</h3><p class="hint">Leads da LP (barra) · Gasto (linha vermelha) · CPL (linha)</p><div class="chart-box"><canvas id="lpCombo"></canvas></div></div>
+            <div class="tbl-wrap tbl-normal"><table class="dt" id="lpDaily"></table></div>
+            <p class="note" style="padding:10px 15px 12px">Heatmap por coluna (Gasto · Leads) · último dia no topo · clique numa data para filtrar (Ctrl = várias). Valores em R$.</p>
+          </div>
+        </div>
+
+        <h2 class="sec-title">KPIs da landing page</h2>
+        <div class="kpis n2" id="lpKpis"></div>
+
+        <h2 class="sec-title">Distribuição dos leads</h2>
+        <div class="row4">
+          <div class="card"><h3>Leads por anúncio (utm_content)</h3><p class="hint">Top 10 anúncios</p><div class="chart-box chart-sm"><canvas id="lpByAd"></canvas></div></div>
+          <div class="card"><h3>Leads por conjunto (utm_term)</h3><p class="hint">Top 10 conjuntos</p><div class="chart-box chart-sm"><canvas id="lpByAdset"></canvas></div></div>
+          <div class="card"><h3>Leads por campanha (utm_campaign)</h3><p class="hint">Top 10 campanhas</p><div class="chart-box chart-sm"><canvas id="lpByCamp"></canvas></div></div>
+          <div class="card"><h3>Leads por origem (utm_source)</h3><p class="hint">Sem UTM = acesso direto/orgânico</p><div class="chart-box chart-sm"><canvas id="lpBySrc"></canvas></div></div>
+        </div>
+        <div class="row4" style="margin-top:16px">
+          <div class="card"><h3>Leads por status</h3><p class="hint">Coluna Status da planilha</p><div class="chart-box chart-sm"><canvas id="lpBySt"></canvas></div></div>
+          <div class="card"><h3>Leads por queixa</h3><p class="hint">Top 10 · só por data (não segue o filtro de campanha)</p><div class="chart-box chart-sm"><canvas id="lpByQueixa"></canvas></div></div>
+          <div class="card"><h3>Leads por período</h3><p class="hint">Período escolhido no formulário</p><div class="chart-box chart-sm"><canvas id="lpByPer"></canvas></div></div>
+          <div class="card"><h3>Leads por dispositivo</h3><p class="hint">Dispositivo de acesso</p><div class="chart-box chart-sm"><canvas id="lpByDisp"></canvas></div></div>
+        </div>
+
+        <h2 class="sec-title">Hierarquia · Campanha → Conjunto → Anúncio</h2>
+        <div class="table-chart-pair"><div class="thead-title">Campanhas</div>
+          <div class="tbl-wrap tbl-normal"><table class="dt" id="lpCamp"></table></div></div>
+        <div class="table-chart-pair"><div class="thead-title">Conjuntos (Ad Sets)</div>
+          <div class="tbl-wrap tbl-normal"><table class="dt" id="lpAdset"></table></div></div>
+        <div class="table-chart-pair"><div class="thead-title">Anúncios</div>
+          <div class="tbl-wrap tbl-normal"><table class="dt" id="lpAd"></table></div></div>
+        <p class="note">Clique numa linha para filtrar a página (Ctrl = várias). Leads sem UTM aparecem como "(sem UTM)" e não têm gasto associado.</p>
+
+        <h2 class="sec-title">Leads da landing page <span class="pill q" id="lpLeadsCount"></span></h2>
+        <div class="card" style="padding:0">
+          <div class="tbl-wrap tbl-double"><table class="dt" id="lpLeadsTbl"></table></div>
+          <p class="note" style="padding:10px 15px">Cada linha é um lead marcado com as UTMs dele. Sem nome, WhatsApp nem queixa individual — esta dashboard é um link público (LGPD).</p>
+        </div>
       </div>
 
       <div class="foot">Atualizado automaticamente a cada ~30 min via GitHub Actions + cron‑job.org. Somente leitura das planilhas. <span id="buildFoot2"></span></div>

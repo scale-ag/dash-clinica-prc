@@ -79,6 +79,7 @@ Spreadsheet ID: `1SrzEB16RhXoQm28tNRF4TcUmhYqaTJZBlq5xQCCRkLE` (planilha de míd
 |-----|-----|----------------|
 | **Página 1** (Meta Ads) | `0` | `Day` · `Campaign Name` · `Ad Set Name` · `Ad Name` · `Impressions` · `Link Clicks` · `Amount Spent` · `Messaging Conversations Started` |
 | **📈 <mês>** (planilha de Controle de tráfego — ver "Seguidores") | descoberto pelo nome | `Data` · bloco `META — Seguidores`: `Invest. (R$)` · `Seguid.` |
+| **Leads** (planilha "Novo funil de agendamentos" — ver "Funil landing page") | achada pelo cabeçalho | `Data/hora` · `Queixa` (só agregada) · `Período` · `Status` · `utm_*` · `Dispositivo` · `Página` |
 
 URL de export CSV: `https://docs.google.com/spreadsheets/d/<ID>/export?format=csv&gid=<GID>`
 
@@ -145,6 +146,31 @@ Captura Meta Ads, os cards mostram "-". O intervalo do "Todo período" inclui
 os dias de seguidores com movimento (dias futuros zerados não contam). Períodos fora do mês atual (ex.: "Mês
 passado") também mostram "-", porque só a aba do mês atual é carregada.
 Teste local: `--seg-file aba_mes.csv`.
+
+### Funil landing page (4ª aba da dash, planilha própria)
+Planilha **"Planilha - Novo funil de agendamentos"**
+(`LP_SPREADSHEET_ID = 1gc4pYfTn1SLrFQZBYdNjHgYq_biaFmOpYJ7QWidYuQw`), aba
+**Leads** = 1 linha por formulário enviado na LP, com UTMs. `load_lp_leads()`
+acha a aba pelo **cabeçalho** (`Data/hora` + `utm_campaign`), tentando
+`LP_GIDS_CONHECIDOS` e depois os gids do htmlview; sem aba/acesso → `lp.leads=[]`
+e o build segue.
+- **Gasto = campanhas cujo nome aparece no `utm_campaign` dos leads** (escolha
+  do cliente; exige `utm_campaign={{campaign.name}}` no anúncio). Essas
+  campanhas saem de `meta[]`/`leads[]` (Visão Geral, Captura Meta Ads e
+  Relatório ficam só com o funil de WhatsApp) e vão para `lp.meta`. Enquanto
+  uma campanha nova não tiver nenhum lead, o gasto dela ainda cai nas abas de
+  WhatsApp. O log do build lista as campanhas da LP e avisa `utm_campaign` sem
+  campanha correspondente no Meta Ads.
+- UTM → nomes do Meta: campanha = `utm_campaign`, conjunto = `utm_term` (ou
+  `utm_medium`, se for esse que bate), anúncio = `utm_content`; comparação sem
+  acento/caixa e com UTM crua da URL decodificada (`utm_val`).
+- **LGPD:** a dash é pública — Nome, WhatsApp, ID do lead, fbclid/gclid **nunca**
+  entram no HTML; a Queixa só sai agregada por dia (`lp.queixas`), sem ligação
+  com o lead. `Página` vai sem query string.
+- Funil (`renderLp` em `app.js`): Gasto → Impressões (CPM) → Cliques (CTR, CPC)
+  → Leads da landing page (Clique→Lead, CPL) → Agendados (Status contém
+  "agend", exceto "não/sem agend…"). Filtro cruzado próprio (`STATE.lSel*`).
+Teste local: `--lp-file leads.csv`.
 
 ### Imposto da mídia paga
 `TAX_FACTOR = 1.1385` em `build.py` (13,85%). O toggle "Imposto Meta" fica
@@ -259,7 +285,7 @@ python build/build.py --leads-file leads.csv --meta-file meta.csv --out dist/ind
 
 ## Especificação funcional (resumo)
 
-Três **páginas separadas** (sidebar):
+Quatro **páginas separadas** (sidebar) — a 4ª é **Funil landing page** (ver seção própria acima):
 1. **Visão Geral de Leads** — funil vertical (Gasto → Impressões → Cliques → Leads →
    MQLs → Vendas/Faturamento) + KPIs secundários; gráfico combinado diário +
    tabela diária com heatmap (todos os leads); barras por origem/faixa/plataforma/profissão.

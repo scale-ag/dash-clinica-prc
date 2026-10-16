@@ -19,13 +19,16 @@ iniciadas), usada como proxy de Lead. Nao ha planilha de Conversas, Leads
   - ad_links fica vazio: nao ha coluna de permalink de criativo nesta planilha.
   - seg[] (Seguidores) vem de OUTRA planilha (Controle de trafego, aba do mes
     atual, bloco "META — Seguidores") — ver load_seguidores().
+  - lp{} (pagina "Funil landing page") vem da planilha de leads da LP (com
+    UTMs). As campanhas cujo nome aparece no utm_campaign desses leads saem de
+    meta[]/leads[] e vao para lp.meta — ver load_lp_leads()/build_lp().
 
 Este script apenas LE a planilha (export CSV publico) e emite os REGISTROS
 BRUTOS (leads[], meta[]) dentro do HTML. Todos os filtros, agregacoes, KPIs,
 tabelas e graficos sao calculados no navegador (client-side). Nunca escreve
 nada de volta.
 
-Teste local: --meta-file / --seg-file apontando para CSVs baixados.
+Teste local: --meta-file / --seg-file / --lp-file apontando para CSVs baixados.
 """
 from __future__ import annotations
 
@@ -37,6 +40,7 @@ import os
 import re
 import sys
 import unicodedata
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone, timedelta
 
@@ -53,6 +57,14 @@ MESES_PT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out"
 # primeiro; se o mês não estiver aqui, o gid é descoberto no htmlview.
 SEG_GIDS_CONHECIDOS = {"Set": "1349189258"}
 HTMLVIEW_URL = "https://docs.google.com/spreadsheets/d/{sid}/htmlview"
+
+# Funil landing page: planilha "Planilha - Novo funil de agendamentos", aba
+# "Leads" (1 linha por lead do formulário da LP, com UTMs). A aba é achada pelo
+# CABEÇALHO (Data/hora + utm_campaign), não pelo gid — tenta os gids abaixo e
+# depois os do htmlview. Nome/WhatsApp/ID do lead NUNCA entram no HTML (a
+# dashboard é pública); a Queixa só entra agregada por dia (lp_queixas).
+LP_SPREADSHEET_ID = "1gc4pYfTn1SLrFQZBYdNjHgYq_biaFmOpYJ7QWidYuQw"
+LP_GIDS_CONHECIDOS = ["0"]
 
 # Identificação do cliente/conta (usada só em textos/relatórios — não afeta o cruzamento de dados).
 CLIENT_NAME = "Clínica PRC"
@@ -284,9 +296,156 @@ def load_seguidores(local: str | None, hoje: datetime) -> list[dict]:
 
 
 # --------------------------------------------------------------------------- #
+# Funil landing page (planilha de leads da LP, com UTMs)
+# --------------------------------------------------------------------------- #
+def nkey(v) -> str:
+    """Chave de comparação de nomes (campanha/conjunto/anúncio x UTM): sem
+    acento, minúscula, espaços colapsados."""
+    return re.sub(r"\s+", " ", norm(v))
+
+
+def utm_val(v: str) -> str:
+    """Valor de UTM como gravado pela LP. Se veio cru da URL (ex.:
+    "PRC%20%7C%20E2-CAP" ou "PRC+|+E2-CAP"), decodifica; senão mantém."""
+    s = (v or "").strip()
+    if "%" in s or ("+" in s and " " not in s):
+        s = urllib.parse.unquote_plus(s).strip()
+    return s
+
+
+def parse_lp_datetime(v: str) -> str | None:
+    """Data (BRT) do "Data/hora" da LP: aceita "16/10/2026 14:32:10",
+    "16/10/2026" e ISO ("2026-10-16T17:32:10.000Z" — convertido para BRT)."""
+    s = (v or "").strip()
+    if not s:
+        return None
+    m = re.match(r"(\d{1,2})/(\d{1,2})/(\d{4})", s)
+    if m:
+        return f"{m.group(3)}-{int(m.group(2)):02d}-{int(m.group(1)):02d}"
+    m = re.match(r"\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:?\d{2})?$", s)
+    if m and m.group(1):
+        try:
+            dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+            return dt.astimezone(BRT).strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+    return parse_date(s)
+
+
+def find_lp_header(rows):
+    """Índice da linha de cabeçalho da aba de leads da LP (tem utm_campaign e
+    uma coluna de data) — None se a aba não for a de leads."""
+    for i, row in enumerate(rows[:5]):
+        hn = [norm(x) for x in row]
+        if "utm_campaign" in hn and any(h.startswith("data") for h in hn):
+            return i
+    return None
+
+
+def parse_lp_rows(rows):
+    """Linhas da aba de leads da LP -> registros crus (sem nome/WhatsApp/ID).
+    None = não é a aba de leads."""
+    hi = find_lp_header(rows)
+    if hi is None:
+        return None
+    idx = header_index(
+        rows[hi],
+        {"dt": ["data/hora", "data"], "queixa": ["queixa"], "per": ["periodo"], "st": ["status"],
+         "src": ["utm_source"], "med": ["utm_medium"], "camp": ["utm_campaign"], "content": ["utm_content"],
+         "term": ["utm_term"], "disp": ["dispositivo"], "pg": ["pagina"]},
+        {},
+    )
+    out = []
+    for row in rows[hi + 1:]:
+        if not any((c or "").strip() for c in row):
+            continue
+        d = parse_lp_datetime(cell(row, idx["dt"]))
+        if not d:
+            continue
+        pg = cell(row, idx["pg"])
+        pg = urllib.parse.urlsplit(pg).path if pg.startswith("http") else pg.split("?")[0]
+        out.append({
+            "d": d,
+            "src": utm_val(cell(row, idx["src"])), "med": utm_val(cell(row, idx["med"])),
+            "camp": utm_val(cell(row, idx["camp"])), "content": utm_val(cell(row, idx["content"])),
+            "term": utm_val(cell(row, idx["term"])),
+            "st": cell(row, idx["st"]), "per": cell(row, idx["per"]), "disp": cell(row, idx["disp"]),
+            "pg": pg, "queixa": cell(row, idx["queixa"]),
+        })
+    return out
+
+
+def load_lp_leads(local: str | None) -> list[dict]:
+    """Leads da LP (aba achada pelo cabeçalho). Nunca derruba o build: sem
+    acesso/aba, devolve [] e a página "Funil landing page" mostra zero leads."""
+    if local:
+        return parse_lp_rows(read_csv_file(local)) or []
+    sid = LP_SPREADSHEET_ID
+    gids = list(LP_GIDS_CONHECIDOS)
+    try:
+        gids += gids_da_planilha(sid)
+    except Exception as e:
+        print(f"  lp: htmlview falhou ({e})", file=sys.stderr)
+    for gid in dict.fromkeys(gids):
+        try:
+            recs = parse_lp_rows(fetch_csv(EXPORT_URL.format(sid=sid, gid=gid)))
+        except Exception as e:
+            print(f"  lp: gid {gid} falhou ({e})", file=sys.stderr)
+            continue
+        if recs is not None:
+            print(f"  lp: aba de leads = gid {gid} — {len(recs)} leads", file=sys.stderr)
+            return recs
+    print("  AVISO lp: aba de leads (Data/hora + utm_campaign) não encontrada — Funil LP sem leads",
+          file=sys.stderr)
+    return []
+
+
+def lp_campaign_keys(lp_raw) -> set[str]:
+    """Campanhas do funil LP = as que aparecem no utm_campaign dos leads."""
+    return {nkey(r["camp"]) for r in lp_raw if r["camp"]}
+
+
+def build_lp(lp_raw, lp_meta):
+    """Liga os leads da LP aos nomes do Meta Ads: campanha = utm_campaign,
+    conjunto = utm_term (ou utm_medium, se for esse que bate com um conjunto),
+    anúncio = utm_content. Sem UTM -> "(sem UTM)" etc. Queixa sai SÓ agregada
+    por dia (lp_queixas) — nenhum registro individual carrega a queixa."""
+    names = {k: {} for k in ("camp", "adset", "ad")}
+    for m in lp_meta:
+        for k in names:
+            names[k].setdefault(nkey(m[k]), m[k])
+
+    def match(kind, *vals):
+        for v in vals:
+            if v and nkey(v) in names[kind]:
+                return names[kind][nkey(v)]
+        return None
+
+    leads, queixas = [], {}
+    for r in lp_raw:
+        tem_utm = any(r[k] for k in ("src", "camp", "content", "term", "med"))
+        leads.append({
+            "d": r["d"],
+            "camp": match("camp", r["camp"]) or r["camp"] or "(sem UTM)",
+            "adset": match("adset", r["term"], r["med"]) or r["term"] or "(sem conjunto)",
+            "ad": match("ad", r["content"]) or r["content"] or "(sem anúncio)",
+            "src": r["src"] or "(sem UTM)",
+            "st": r["st"] or "(sem status)", "per": r["per"] or "(não informado)",
+            "disp": r["disp"] or "(não informado)", "pg": r["pg"] or "(não informada)",
+            "utm": 1 if tem_utm else 0,
+        })
+        qk = (r["d"], r["queixa"] or "(não informada)")
+        queixas[qk] = queixas.get(qk, 0) + 1
+    return leads, [{"d": d, "q": q, "n": n} for (d, q), n in sorted(queixas.items())]
+
+
+# --------------------------------------------------------------------------- #
 # Processamento -> registros brutos
 # --------------------------------------------------------------------------- #
-def process(meta_rows):
+def process(meta_rows, lp_keys=frozenset()):
+    """lp_keys: campanhas (nkey) do funil LP — suas linhas do Meta Ads vão para
+    lp_meta e NÃO entram em meta[]/leads[] (abas de WhatsApp ficam só com o
+    funil de conversas)."""
     mheader = meta_rows[0] if meta_rows else []
     midx = header_index(
         mheader,
@@ -304,6 +463,7 @@ def process(meta_rows):
 
     meta = []
     leads = []
+    lp_meta = []
     ad_links = {}
     for row in meta_rows[1:]:
         if not any((c or "").strip() for c in row):
@@ -316,7 +476,7 @@ def process(meta_rows):
         if link and ad not in ad_links:
             ad_links[ad] = link
         n_leads = to_float(cell(row, midx["leads"]))
-        meta.append({
+        rec = {
             "d": d,
             "camp": camp,
             "adset": adset,
@@ -326,14 +486,18 @@ def process(meta_rows):
             "cl": to_float(cell(row, midx["clicks"])),
             "pv": to_float(cell(row, midx["pv"])),
             "ck": to_float(cell(row, midx["chk"])),
-        })
+        }
+        if nkey(camp) in lp_keys:
+            lp_meta.append(rec)
+            continue
+        meta.append(rec)
         # Leads sintéticos: 1 registro por conversa iniciada (Messaging
         # Conversations Started), sem segunda camada de qualificação nesta
         # conta — todo lead entra como q=1 (Leads == MQLs == 100%).
         for _ in range(round(n_leads)):
             leads.append({"d": d, "src": "meta", "camp": camp, "adset": adset, "ad": ad, "q": 1, "utm": 1})
 
-    dates = sorted({d for d in ([l["d"] for l in leads if l["d"]] + [m["d"] for m in meta if m["d"]])})
+    dates = sorted({d for d in ([l["d"] for l in leads if l["d"]] + [m["d"] for m in meta + lp_meta if m["d"]])})
     now_brt = datetime.now(BRT)
     return {
         "build": {
@@ -354,6 +518,9 @@ def process(meta_rows):
         },
         "leads": leads,
         "meta": meta,
+        # Funil landing page: gasto Meta das campanhas da LP (lp.leads/queixas
+        # são preenchidos em main(), a partir da planilha de leads da LP).
+        "lp": {"meta": lp_meta, "leads": [], "queixas": []},
         # Sem fonte de compradores nesta conta — Vendas/Faturamento ficam "-".
         "sales": [],
         # Sem coluna de permalink de criativo nesta planilha.
@@ -414,19 +581,23 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--meta-file", help="CSV local da aba de Meta Ads (Página 1)")
     ap.add_argument("--seg-file", help="CSV local da aba mensal de Controle de tráfego (bloco META — Seguidores)")
+    ap.add_argument("--lp-file", help="CSV local da aba Leads da planilha do funil landing page")
     ap.add_argument("--template", default="build/template.html")
     ap.add_argument("--out", default="dist/index.html")
     args = ap.parse_args()
 
     meta_rows = load_rows(EXPORT_URL.format(sid=SPREADSHEET_ID, gid=GID_META), args.meta_file)
 
-    data = process(meta_rows)
+    lp_raw = load_lp_leads(args.lp_file)
+    data = process(meta_rows, lp_campaign_keys(lp_raw))
+    data["lp"]["leads"], data["lp"]["queixas"] = build_lp(lp_raw, data["lp"]["meta"])
     data["seg"] = load_seguidores(args.seg_file, datetime.now(BRT))
     # "Todo período" cobre também dias de seguidores com movimento (dias futuros
     # já pré-listados na aba, ainda zerados, não esticam o intervalo).
     b = data["build"]
     dias = [x for x in (b["date_min"], b["date_max"]) if x] + \
-           [s["d"] for s in data["seg"] if s["n"] or s["sp"]]
+           [s["d"] for s in data["seg"] if s["n"] or s["sp"]] + \
+           [l["d"] for l in data["lp"]["leads"]]
     if dias:
         b["date_min"], b["date_max"] = min(dias), max(dias)
 
@@ -453,6 +624,14 @@ def main():
     if ultimos:
         print("  seguidores últimos dias: " + " | ".join(
             f"{s['d'][8:]}/{s['d'][5:7]} {s['n']:.0f} (R$ {s['sp']:.2f})" for s in ultimos), file=sys.stderr)
+    lp = data["lp"]
+    lp_camps = sorted({m["camp"] for m in lp["meta"]})
+    print(f"  lp        : {len(lp['leads'])} leads ({sum(l['utm'] for l in lp['leads'])} c/ UTM)  "
+          f"gasto R$ {sum(m['sp'] for m in lp['meta']):,.2f}  campanhas: {lp_camps or '-'}", file=sys.stderr)
+    com_gasto = {nkey(c) for c in lp_camps}
+    sem_gasto = sorted({r["camp"] for r in lp_raw if r["camp"] and nkey(r["camp"]) not in com_gasto})
+    if sem_gasto:
+        print(f"  AVISO lp: utm_campaign sem campanha correspondente no Meta Ads: {sem_gasto}", file=sys.stderr)
     print(f"  out       : {args.out}", file=sys.stderr)
 
 
