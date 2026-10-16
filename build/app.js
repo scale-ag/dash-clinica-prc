@@ -2,6 +2,11 @@
 const DATA = JSON.parse(document.getElementById('payload').textContent);
 const LEADS = DATA.leads, META = DATA.meta, SALES = DATA.sales||[], SEG = DATA.seg||[], B = DATA.build;
 const TAX = B.tax_factor || 1.0;
+/* Funil landing page: gasto Meta das campanhas da LP (lp.meta), leads do
+   formulário com UTMs (lp.leads, sem nome/WhatsApp) e queixas agregadas por dia
+   (lp.queixas). q=1 só p/ reaproveitar totals()/buildAgg() (não há MQL na LP). */
+const LP = DATA.lp || {meta:[], leads:[], queixas:[]};
+LP.leads.forEach(l=>{ l.q=1; });
 
 /* ---------------- format ---------------- */
 const nf0=new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0});
@@ -28,6 +33,7 @@ const STATE = {
   page:'geral', from:(()=>{const [y,m]=TODAY.split('-'); return `${y}-${m}-01`;})(), to:TODAY, preset:'mes', tax:true,
   selDays:new Set(),
   mSelC:new Set(), mSelA:new Set(), mSelAd:new Set(),
+  lSelC:new Set(), lSelA:new Set(), lSelAd:new Set(),
   sort:{}, colw: JSON.parse(localStorage.getItem('dm_colw')||'{}'),
 };
 const taxf = ()=> STATE.tax ? TAX : 1;
@@ -420,13 +426,14 @@ const CHART_SERIES=['--cc1','--cc2','--cc3','--cc4','--cc5','--cc6','--cc7','--c
 const chartPalette=()=>CHART_SERIES.map(v=>cvar(v)||'#888888');
 const cmuted=()=>cvar('--muted')||'#6B7280', cink=()=>cvar('--ink')||'#1A1D2E', cgrid=()=>cvar('--grid')||'#EEF0F5';
 function destroy(id){ if(charts[id]){ charts[id].destroy(); delete charts[id]; } }
-function comboChart(id, d){
+function comboChart(id, d, unit){
+  unit=unit||'Conversas';
   destroy(id); const el=document.getElementById(id); if(!el) return;
   const labels=d.map(x=>x.d.slice(5)), mut=cmuted(), gr=cgrid();
   const cLeads=cvar('--chart-leads'), cGasto=cvar('--chart-gasto'), cCpl=cvar('--chart-cpl')||cink();
   charts[id]=new Chart(el,{
     data:{labels, datasets:[
-      {type:'bar',label:'Conversas',data:d.map(x=>x.leads),backgroundColor:cLeads,yAxisID:'y',borderRadius:3,order:3},
+      {type:'bar',label:unit,data:d.map(x=>x.leads),backgroundColor:cLeads,yAxisID:'y',borderRadius:3,order:3},
       {type:'line',label:'Gasto',data:d.map(x=>+(x.sp*taxf()).toFixed(2)),borderColor:cGasto,backgroundColor:cGasto,yAxisID:'y1',borderWidth:2,pointRadius:2,tension:.25,order:1},
       {type:'line',label:'CPL',data:d.map(x=>x.leads?+((x.sp*taxf())/x.leads).toFixed(2):null),borderColor:cCpl,backgroundColor:cCpl,yAxisID:'y1',borderWidth:2,pointRadius:2,spanGaps:true,tension:.25,order:0},
     ]},
@@ -434,11 +441,13 @@ function comboChart(id, d){
       plugins:{legend:{labels:{color:cink(),boxWidth:10,usePointStyle:true,font:{size:11}}},
         tooltip:{callbacks:{label:c=>{const v=c.raw; return c.dataset.label+': '+(c.dataset.yAxisID==='y1'?brl(v):intf(v));}}}},
       scales:{x:{ticks:{color:mut,font:{size:10}},grid:{display:false}},
-        y:{position:'left',ticks:{color:mut,font:{size:10}},grid:{color:gr},beginAtZero:true,title:{display:true,text:'Conversas',color:mut,font:{size:10}}},
+        y:{position:'left',ticks:{color:mut,font:{size:10}},grid:{color:gr},beginAtZero:true,title:{display:true,text:unit,color:mut,font:{size:10}}},
         y1:{position:'right',ticks:{color:mut,font:{size:10}},grid:{display:false},beginAtZero:true,title:{display:true,text:'R$',color:mut,font:{size:10}}}}}
   });
 }
-function hbar(id, items, valFn, colorFn, top, unit){
+/* tail: rótulos longos (nomes de campanha/conjunto) viram "…" + final do nome,
+   que é a parte que diferencia — o nome completo continua no tooltip. */
+function hbar(id, items, valFn, colorFn, top, unit, tail){
   destroy(id); const el=document.getElementById(id); if(!el) return;
   unit=unit||'leads';
   let arr=items.slice().sort((a,b)=>valFn(b)-valFn(a)); if(top) arr=arr.slice(0,top);
@@ -448,7 +457,7 @@ function hbar(id, items, valFn, colorFn, top, unit){
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:28}},
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>intf(c.raw)+' '+unit}}},
       scales:{x:{beginAtZero:true,ticks:{color:mut,precision:0,font:{size:10}},grid:{color:cgrid()}},
-              y:{ticks:{color:mut,font:{size:10}},grid:{display:false}}}}});
+              y:{ticks:{color:mut,font:{size:10},callback:tail?function(v){ const l=String(this.getLabelForValue(v)); return l.length>26?'…'+l.slice(-25):l; }:undefined},grid:{display:false}}}}});
 }
 const barLabels={id:'barLabels',afterDatasetsDraw(ch){const{ctx}=ch;ctx.save();ctx.font='600 11px Segoe UI,system-ui';ctx.fillStyle=cmuted();ctx.textBaseline='middle';
   ch.getDatasetMeta(0).data.forEach((el,i)=>{const v=ch.data.datasets[0].data[i]; if(!v)return; ctx.fillText(intf(v),el.x+5,el.y);});ctx.restore();}};
@@ -966,6 +975,111 @@ function renderMeta(){
   mqlByDimChart('chAd', Sd.fL, Sd.fM, aggD, 'ad', STATE.mSelAd);
 }
 
+/* ---------------- PAGE 4: Funil landing page ----------------
+   Mesma lógica da Captura Meta Ads, sobre os dados da LP: leads do formulário
+   (DATA.lp.leads) × gasto das campanhas cujo nome aparece no utm_campaign deles
+   (DATA.lp.meta). Filtro cruzado próprio (lSel*), independente do da aba Meta. */
+const lpLeadsActive=()=>LP.leads.filter(l=>dateActive(l.d));
+const lpMetaActive =()=>LP.meta.filter(m=>dateActive(m.d));
+function lpScope(ex){ let fL=lpLeadsActive(), fM=lpMetaActive();
+  if(ex!=='C'&&STATE.lSelC.size){ fL=fL.filter(r=>STATE.lSelC.has(r.camp)); fM=fM.filter(r=>STATE.lSelC.has(r.camp)); }
+  if(ex!=='A'&&STATE.lSelA.size){ fL=fL.filter(r=>STATE.lSelA.has(r.adset)); fM=fM.filter(r=>STATE.lSelA.has(r.adset)); }
+  if(ex!=='D'&&STATE.lSelAd.size){ fL=fL.filter(r=>STATE.lSelAd.has(r.ad)); fM=fM.filter(r=>STATE.lSelAd.has(r.ad)); }
+  return {fL,fM}; }
+function selLp(dim,key,ctrl){
+  const sets={C:STATE.lSelC,A:STATE.lSelA,D:STATE.lSelAd}, s=sets[dim];
+  if(ctrl){ s.has(key)?s.delete(key):s.add(key); }
+  else { const sole=s.has(key)&&s.size===1&&!Object.entries(sets).some(([k2,x])=>k2!==dim&&x.size);
+    Object.values(sets).forEach(x=>x.clear()); if(!sole) s.add(key); }
+  renderLp();
+}
+/* Status "agendado" (qualquer variação), exceto negativas ("não agendou"). */
+const deaccent=s=>String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const isAgendado=st=>{ const n=deaccent(st); return n.includes('agend') && !/\bnao\b|\bsem\b/.test(n); };
+function countBy(list,key){ const m={}; list.forEach(r=>{ const k=r[key]; m[k]=(m[k]||0)+1; });
+  return Object.entries(m).map(([label,leads])=>({label,leads})); }
+function lpDerive(a){ const d=derive(a); return {...d, cvr:a.cl?a.leads/a.cl:null}; }
+const LP_HCOLS=[
+  {key:'dim',label:'',type:'dim',big:true},{key:'gasto',label:'Gasto',type:'brl'},
+  {key:'im',label:'Impr.',type:'int'},{key:'cpm',label:'CPM',type:'brl'},
+  {key:'cl',label:'Cliques',type:'int'},{key:'ctr',label:'CTR',type:'pct'},{key:'cpc',label:'CPC',type:'brl'},
+  {key:'leads',label:'Leads',type:'int'},{key:'cvr',label:'Clique→Lead',type:'pct'},{key:'cpl',label:'CPL',type:'brl'},
+];
+function lpHierCells(k,a){ const d=lpDerive(a);
+  return {dim:k,gasto:d.gasto,im:a.im,cpm:d.cpm,cl:a.cl,ctr:d.ctr,cpc:d.cpc,leads:a.leads,cvr:d.cvr,cpl:d.cpl}; }
+function renderLp(){
+  const F=lpScope(null), fL=F.fL, fM=F.fM;
+  const t=totals(fL,fM,[]), dv=lpDerive(t), g=dv.gasto;
+  const nAg=fL.filter(l=>isAgendado(l.st)).length;
+  const steps=[
+    ['Gasto Total', brl(g), [], false, 'hl-gasto'],
+    ['Impressões', intf(t.im), [['CPM',brl(dv.cpm)]]],
+    ['Cliques', intf(t.cl), [['CTR',pct(dv.ctr)],['CPC',brl(dv.cpc)]]],
+    ['Leads da landing page', intf(t.leads), [['Clique→Lead',pct(dv.cvr)],['CPL',brl(dv.cpl)]], false, 'hl-mql'],
+    ['Agendados', nAg?intf(nAg):'-', [['Lead→Agend.',pct(nAg&&t.leads?nAg/t.leads:null)],['Custo/agend.',brl(nAg?g/nAg:null)]], !nAg, 'hl-fat'],
+  ];
+  document.getElementById('lpFunnel').innerHTML=funnelHTML(steps);
+
+  const dd=daily(fL,fM,[]), nDays=dd.length||1;
+  const comUtm=fL.filter(l=>l.utm).length;
+  const adAgg=buildAgg(fL,fM,[],'ad'); let bestAd=null;
+  Object.entries(adAgg).forEach(([ad,a])=>{ if(a.leads>0&&a.sp>0){ const c=(a.sp*taxf())/a.leads; if(!bestAd||c<bestAd.v) bestAd={ad,v:c}; } });
+  const adShort=s=>{ s=String(s||'—'); return s.length>22?s.slice(0,21)+'…':s; };
+  document.getElementById('lpKpis').innerHTML=[
+    {label:'Leads por dia (média)',val:numf(t.leads/nDays),aux:brl(dv.cpl)+' CPL médio'},
+    {label:'Leads com UTM',val:intf(comUtm),aux:pct(t.leads?comUtm/t.leads:null)+' rastreados'},
+    {label:'Leads sem UTM',val:intf(t.leads-comUtm),aux:'direto/orgânico — sem gasto'},
+    {label:'Melhor CPL (anúncio)',val:bestAd?brl(bestAd.v):'-',aux:bestAd?adShort(bestAd.ad):'—'},
+  ].map(kpiCard).join('');
+
+  comboChart('lpCombo', dd, 'Leads');
+  const LP_DAILY_COLS=[
+    {key:'date',label:'Data',type:'date'},{key:'wd',label:'Dia',type:'dim',w:70},
+    {key:'gasto',label:'Gasto',type:'brl',heat:'gasto'},{key:'cpm',label:'CPM',type:'brl'},
+    {key:'ctr',label:'CTR',type:'pct'},{key:'cpc',label:'CPC',type:'brl'},
+    {key:'leads',label:'Leads',type:'int',heat:'leads'},{key:'cvr',label:'Clique→Lead',type:'pct'},{key:'cpl',label:'CPL',type:'brl'},
+  ];
+  const dCells=(x,isTotal)=>{ const d=lpDerive(x);
+    return {date:isTotal?null:x.d, wd:isTotal?'':weekday(x.d), gasto:d.gasto, cpm:d.cpm, ctr:d.ctr, cpc:d.cpc, leads:x.leads, cvr:d.cvr, cpl:d.cpl}; };
+  renderTable({id:'lpDaily', cols:LP_DAILY_COLS, center:true, fit:true,
+    rows:dd.slice().reverse().map(x=>({k:x.d, cells:dCells(x)})), total:dCells(t,true),
+    selectable:true, selSet:STATE.selDays,
+    onSelect:(k,e)=>{ toggleSet(STATE.selDays,k,e&&(e.ctrlKey||e.metaKey)); syncDateInputs(); renderAll(); },
+  });
+
+  const cLeads=()=>cvar('--chart-leads'), cMqls=()=>cvar('--chart-mqls');
+  hbar('lpByAd', countBy(fL,'ad'), x=>x.leads, cMqls, 10, 'leads', true);
+  hbar('lpByAdset', countBy(fL,'adset'), x=>x.leads, cLeads, 10, 'leads', true);
+  hbar('lpByCamp', countBy(fL,'camp'), x=>x.leads, cMqls, 10, 'leads', true);
+  hbar('lpBySrc', countBy(fL,'src'), x=>x.leads, cLeads);
+  hbar('lpBySt', countBy(fL,'st'), x=>x.leads, cMqls);
+  const byQ={}; LP.queixas.filter(q=>dateActive(q.d)).forEach(q=>{ byQ[q.q]=(byQ[q.q]||0)+q.n; });
+  hbar('lpByQueixa', Object.entries(byQ).map(([label,leads])=>({label,leads})), x=>x.leads, cLeads, 10, 'leads', true);
+  hbar('lpByPer', countBy(fL,'per'), x=>x.leads, cMqls);
+  hbar('lpByDisp', countBy(fL,'disp'), x=>x.leads, cLeads);
+
+  // hierarquia — cada tabela exclui a PRÓPRIA dimensão do filtro (irmãs ficam visíveis p/ Ctrl)
+  const hier=(id,dim,label,ex,set)=>{ const S=lpScope(ex), agg=buildAgg(S.fL,S.fM,[],dim);
+    renderTable({id, center:true, cols:LP_HCOLS.map((c,i)=>i===0?{...c,label}:c),
+      rows:Object.entries(agg).map(([k,a])=>({k, cells:lpHierCells(k,a)})),
+      total:{...lpHierCells(null,totals(S.fL,S.fM,[])), dim:null},
+      selectable:true, selSet:set, onSelect:(k,e)=>selLp(ex,k,e&&(e.ctrlKey||e.metaKey))}); };
+  hier('lpCamp','camp','Campanha','C',STATE.lSelC);
+  hier('lpAdset','adset','Conjunto','A',STATE.lSelA);
+  hier('lpAd','ad','Anúncio','D',STATE.lSelAd);
+
+  // lista de leads (sem dados pessoais), mais recente no topo
+  const lst=fL.slice().sort((a,b)=>a.d<b.d?1:a.d>b.d?-1:0);
+  renderTable({id:'lpLeadsTbl', cols:[
+      {key:'d',label:'Data',type:'date'},{key:'st',label:'Status',type:'dim'},{key:'per',label:'Período',type:'dim'},
+      {key:'disp',label:'Dispositivo',type:'dim'},{key:'src',label:'Origem',type:'dim'},
+      {key:'camp',label:'Campanha',type:'dim',big:true},{key:'adset',label:'Conjunto',type:'dim',big:true},
+      {key:'ad',label:'Anúncio',type:'dim',big:true},{key:'pg',label:'Página',type:'dim'},
+    ],
+    rows:lst.map((l,i)=>({k:String(i), cells:{d:l.d,st:l.st,per:l.per,disp:l.disp,src:l.src,camp:l.camp,adset:l.adset,ad:l.ad,pg:l.pg}}))});
+  document.getElementById('lpLeadsCount').textContent=intf(lst.length)+' lead'+(lst.length===1?'':'s')+' no período';
+}
+
 /* ---------------- date presets ---------------- */
 const PRESETS=[
   ['hoje','Hoje',()=>[TODAY,TODAY]],
@@ -1055,17 +1169,19 @@ function ppApply(){
 }
 
 /* ---------------- navigation & boot ---------------- */
-function setPage(p){ STATE.page=p;
+const PAGE_TITLES={geral:'Visão Geral de Leads', meta:'Captura Meta Ads', rel:'Relatório', lp:'Funil landing page'};
+function setPage(p){ if(!PAGE_TITLES[p]) p='geral'; STATE.page=p;
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===p));
   document.getElementById('page-geral').classList.toggle('active',p==='geral');
   document.getElementById('page-meta').classList.toggle('active',p==='meta');
   document.getElementById('page-rel').classList.toggle('active',p==='rel');
-  document.getElementById('ptitle').textContent = p==='meta'?'Captura Meta Ads':(p==='rel'?'Relatório':'Visão Geral de Leads');
+  document.getElementById('page-lp').classList.toggle('active',p==='lp');
+  document.getElementById('ptitle').textContent = PAGE_TITLES[p]||PAGE_TITLES.geral;
   document.getElementById('navToggle').checked=false;
-  history.replaceState(null,'', p==='meta'?'#meta':(p==='rel'?'#rel':'#geral'));
+  history.replaceState(null,'', '#'+(PAGE_TITLES[p]?p:'geral'));
   renderAll();
 }
-function renderAll(){ if(STATE.page==='meta') renderMeta(); else if(STATE.page==='rel') renderRelatorio(); else renderGeral(); }
+function renderAll(){ if(STATE.page==='meta') renderMeta(); else if(STATE.page==='rel') renderRelatorio(); else if(STATE.page==='lp') renderLp(); else renderGeral(); }
 
 function applyTheme(){ const t=localStorage.getItem('dm_theme'); if(t==='light') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme','dark'); }
 applyTheme();
@@ -1080,7 +1196,7 @@ document.getElementById('ppCancel').addEventListener('click',ppClose);
 document.getElementById('periodPop').addEventListener('click',e=>e.stopPropagation());
 document.addEventListener('click',()=>{ if(ppIsOpen()) ppClose(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&ppIsOpen()) ppClose(); });
-document.getElementById('clearBtn').addEventListener('click',()=>{ STATE.mSelC.clear();STATE.mSelA.clear();STATE.mSelAd.clear();STATE.selDays.clear(); applyPreset('mes'); });
+document.getElementById('clearBtn').addEventListener('click',()=>{ [STATE.mSelC,STATE.mSelA,STATE.mSelAd,STATE.lSelC,STATE.lSelA,STATE.lSelAd,STATE.selDays].forEach(x=>x.clear()); applyPreset('mes'); });
 document.getElementById('refreshBtn').addEventListener('click',function(){ this.classList.add('loading'); location.href=location.pathname+'?t='+Date.now()+location.hash; });
 
 /* painel de Metas & parâmetros — edita ao vivo, salva em localStorage e recolore
@@ -1106,7 +1222,7 @@ document.getElementById('buildFoot').textContent='build __BUILD_ID__';
 document.getElementById('buildFoot2').textContent='· build __BUILD_ID__';
 
 syncDateInputs();
-setPage(location.hash==='#meta'?'meta':(location.hash==='#rel'?'rel':'geral'));
+setPage(location.hash.slice(1));
 
 /* auto-refresh com cache-bust ~30 min */
 setTimeout(()=>{ location.href=location.pathname+'?t='+Date.now()+location.hash; }, 30*60*1000);

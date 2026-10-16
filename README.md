@@ -18,6 +18,7 @@ iniciadas) e é publicada no **GitHub Pages**. Reconstrói sozinha a cada
 - **Distribuição de conversas**: por origem, por público (conjunto de anúncios), por dia da semana e por campanha.
 - **Hierarquia Campanha → Conjunto → Anúncio**: gasto, conversas, CPL por nível, com gráfico de custo por dia.
 - **Toggle de imposto da mídia paga** e **modo claro/escuro**.
+- **Aba Funil landing page**: leads do formulário da LP marcados por UTM (campanha/conjunto/anúncio) × gasto só das campanhas da LP — Gasto → Impressões → Cliques → Leads → Agendados.
 - **Aba Relatório**: espelha a Visão Geral + painel de meta de CPL editável + Top Anúncios + Insights de Tráfego (texto, opcional — ver `build/GUIA-RELATORIOS.md`).
 
 ## Sem MQL/Vendas/Faturamento nesta conta
@@ -45,6 +46,11 @@ O build lê essa aba via **export CSV público** (`.../export?format=csv&gid=0`)
 (`1BZBBwaAN1wBy6bzDxeEN51CkMJ82He-ckhhOzYifrpY`): uma aba por mês (`📈 Set`,
 `📈 Out`…). O build lê só a **aba do mês atual**, bloco **META — Seguidores**
 (`Invest. (R$)` · `Seguid.`), e acha a aba nova sozinho quando o mês vira.
+
+**Funil landing page** vem da planilha "Novo funil de agendamentos"
+(`1gc4pYfTn1SLrFQZBYdNjHgYq_biaFmOpYJ7QWidYuQw`), aba **Leads**. O gasto é o
+das campanhas do Meta Ads cujo nome aparece no `utm_campaign` dos leads — essas
+campanhas saem das outras abas. Nome/WhatsApp nunca vão para a dash (link público).
 
 **Nada é escrito de volta** nas planilhas.
 
