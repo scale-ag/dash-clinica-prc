@@ -21,8 +21,9 @@
     <div class="sec">Dashboards</div>
     <div class="nav-item active" data-page="geral"><span class="ic">◱</span> Visão Geral de Leads</div>
     <div class="nav-item" data-page="meta"><span class="ic">◨</span> Captura Meta Ads</div>
-    <div class="nav-item" data-page="rel"><span class="ic">▤</span> Relatório</div>
+    <div class="nav-item" data-page="seg"><span class="ic">♥</span> Seguidores</div>
     <div class="nav-item" data-page="lp"><span class="ic">◧</span> Funil landing page</div>
+    <div class="nav-item" data-page="rel"><span class="ic">▤</span> Relatório</div>
     <div class="foot">Somente leitura · atualiza ~30 min<br><span id="buildFoot"></span></div>
   </aside>
 
@@ -215,6 +216,23 @@
         <h2 class="sec-title">Insights de Tráfego</h2>
         <div class="rel-brief" id="relBrief"></div>
         <p class="note" id="relBriefStamp"></p>
+      </div>
+
+      <!-- ===================== PÁGINA: SEGUIDORES ===================== -->
+      <div class="page" id="page-seg">
+        <h2 class="sec-title">Seguidores no período</h2>
+        <div class="kpis n2" id="spKpis"></div>
+        <p class="note">Fonte: planilha Controle de tráfego (abas mensais, bloco META — Seguidores), preenchida manualmente.</p>
+        <h2 class="sec-title">Evolução diária</h2>
+        <div class="grid funnel-grid" style="grid-template-columns:1fr">
+          <div class="panel">
+            <div class="panel-chart"><h3>Seguidores por dia</h3><p class="hint">Seguidores (barra) · Investimento (linha vermelha) · Custo por seguidor (linha)</p><div class="chart-box"><canvas id="spCombo"></canvas></div></div>
+            <div class="tbl-wrap tbl-double"><table class="dt" id="spDaily"></table></div>
+            <p class="note" style="padding:10px 15px 12px">Último dia no topo · clique numa data para filtrar (Ctrl = várias). Valores em R$.</p>
+          </div>
+        </div>
+        <h2 class="sec-title">Por mês</h2>
+        <div class="card" style="padding:0"><div class="tbl-wrap"><table class="dt" id="spMonthly"></table></div></div>
       </div>
 
       <!-- ===================== PÁGINA 4: FUNIL LANDING PAGE ===================== -->
