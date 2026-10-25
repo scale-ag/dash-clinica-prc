@@ -1080,6 +1080,39 @@ function renderLp(){
   document.getElementById('lpLeadsCount').textContent=intf(lst.length)+' lead'+(lst.length===1?'':'s')+' no período';
 }
 
+/* ---------------- PAGE: Seguidores ----------------
+   Só a planilha de Controle de tráfego (todas as abas mensais). Custo por
+   seguidor = investimento ÷ seguidores do período (nunca média de CPS). */
+function renderSegPage(){
+  const fS=segActive().filter(r=>r.n||r.sp);
+  let sp=0,n=0; fS.forEach(r=>{sp+=r.sp; n+=r.n;});
+  const g=sp*taxf(), nd=fS.length;
+  const best=fS.filter(r=>r.n>0).sort((a,b)=>b.n-a.n)[0];
+  document.getElementById('spKpis').innerHTML=[
+    {label:'Seguidores',val:fS.length?intf(n):'-',aux:'novos no período',hero:true},
+    {label:'Investimento',val:fS.length?brl(g):'-',aux:'META — Seguidores'},
+    {label:'Custo por Seguidor',val:n?brl(g/n):'-',aux:'investimento ÷ seguidores'},
+    {label:'Seguidores por dia (média)',val:nd?numf(n/nd):'-',aux:intf(nd)+' dias com movimento'},
+    {label:'Melhor dia',val:best?intf(best.n):'-',aux:best?brdate(best.d):'—'},
+  ].map(kpiCard).join('');
+  const d=fS.map(r=>({d:r.d, leads:r.n, sp:r.sp}));
+  comboChart('spCombo', d, 'Seguidores');
+  const cells=r=>({date:r.d, wd:r.d?weekday(r.d):'', gasto:r.sp*taxf(), n:r.n, cps:r.n?r.sp*taxf()/r.n:null});
+  renderTable({id:'spDaily', center:true, fit:true, cols:[
+      {key:'date',label:'Data',type:'date'},{key:'wd',label:'Dia',type:'dim',w:70},
+      {key:'gasto',label:'Investimento',type:'brl',heat:'gasto'},{key:'n',label:'Seguidores',type:'int',heat:'leads'},
+      {key:'cps',label:'Custo/Seguidor',type:'brl'}],
+    rows:fS.slice().reverse().map(r=>({k:r.d, cells:cells(r)})),
+    total:{...cells({d:null,sp,n}),date:null,wd:''},
+    selectable:true, selSet:STATE.selDays,
+    onSelect:(k,e)=>{ toggleSet(STATE.selDays,k,e&&(e.ctrlKey||e.metaKey)); syncDateInputs(); renderAll(); }});
+  const mm={}; SEG.filter(r=>r.n||r.sp).forEach(r=>{ const m=r.d.slice(0,7); const a=mm[m]||(mm[m]={sp:0,n:0,dias:0}); a.sp+=r.sp; a.n+=r.n; a.dias++; });
+  renderTable({id:'spMonthly', center:true, cols:[
+      {key:'mes',label:'Mês',type:'dim'},{key:'gasto',label:'Investimento',type:'brl'},{key:'n',label:'Seguidores',type:'int'},
+      {key:'cps',label:'Custo/Seguidor',type:'brl'},{key:'dias',label:'Dias c/ movimento',type:'int'}],
+    rows:Object.keys(mm).sort().reverse().map(m=>{const a=mm[m]; return {k:m, cells:{mes:MONTHS_PT[+m.slice(5)-1]+' '+m.slice(0,4), gasto:a.sp*taxf(), n:a.n, cps:a.n?a.sp*taxf()/a.n:null, dias:a.dias}};})});
+}
+
 /* ---------------- date presets ---------------- */
 const PRESETS=[
   ['hoje','Hoje',()=>[TODAY,TODAY]],
@@ -1169,19 +1202,20 @@ function ppApply(){
 }
 
 /* ---------------- navigation & boot ---------------- */
-const PAGE_TITLES={geral:'Visão Geral de Leads', meta:'Captura Meta Ads', rel:'Relatório', lp:'Funil landing page'};
+const PAGE_TITLES={geral:'Visão Geral de Leads', meta:'Captura Meta Ads', rel:'Relatório', lp:'Funil landing page', seg:'Seguidores'};
 function setPage(p){ if(!PAGE_TITLES[p]) p='geral'; STATE.page=p;
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===p));
   document.getElementById('page-geral').classList.toggle('active',p==='geral');
   document.getElementById('page-meta').classList.toggle('active',p==='meta');
   document.getElementById('page-rel').classList.toggle('active',p==='rel');
   document.getElementById('page-lp').classList.toggle('active',p==='lp');
+  document.getElementById('page-seg').classList.toggle('active',p==='seg');
   document.getElementById('ptitle').textContent = PAGE_TITLES[p]||PAGE_TITLES.geral;
   document.getElementById('navToggle').checked=false;
   history.replaceState(null,'', '#'+(PAGE_TITLES[p]?p:'geral'));
   renderAll();
 }
-function renderAll(){ if(STATE.page==='meta') renderMeta(); else if(STATE.page==='rel') renderRelatorio(); else if(STATE.page==='lp') renderLp(); else renderGeral(); }
+function renderAll(){ if(STATE.page==='meta') renderMeta(); else if(STATE.page==='rel') renderRelatorio(); else if(STATE.page==='lp') renderLp(); else if(STATE.page==='seg') renderSegPage(); else renderGeral(); }
 
 function applyTheme(){ const t=localStorage.getItem('dm_theme'); if(t==='light') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme','dark'); }
 applyTheme();

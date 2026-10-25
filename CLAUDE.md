@@ -285,7 +285,7 @@ python build/build.py --leads-file leads.csv --meta-file meta.csv --out dist/ind
 
 ## Especificação funcional (resumo)
 
-Quatro **páginas separadas** (sidebar) — a 4ª é **Funil landing page** (ver seção própria acima):
+Cinco **páginas** (sidebar, nesta ordem): Visão Geral · Captura Meta Ads · **Seguidores** (todas as abas mensais da planilha de Controle de tráfego, `renderSegPage`) · **Funil landing page** · Relatório (sempre por último):
 1. **Visão Geral de Leads** — funil vertical (Gasto → Impressões → Cliques → Leads →
    MQLs → Vendas/Faturamento) + KPIs secundários; gráfico combinado diário +
    tabela diária com heatmap (todos os leads); barras por origem/faixa/plataforma/profissão.

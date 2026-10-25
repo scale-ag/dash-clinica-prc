@@ -257,9 +257,6 @@ def load_seguidores(local: str | None, hoje: datetime) -> list[dict]:
             return None
         if not seg:
             return None
-        no_mes = sum(1 for s in seg if s["d"].startswith(mes))
-        if no_mes * 2 < len(seg):
-            return None
         return seg
 
     try:
@@ -278,21 +275,21 @@ def load_seguidores(local: str | None, hoje: datetime) -> list[dict]:
         ativos = [s for s in seg if s["n"] or s["sp"]]
         return (len(ativos), sum(s["n"] for s in ativos), sum(s["sp"] for s in ativos))
 
-    melhor, melhor_gid = None, None
+    # Lê TODAS as abas mensais (histórico p/ a aba Seguidores). Pode haver
+    # mais de uma aba do mesmo mês (cópia vazia) — fica a com mais dados.
+    por_mes = {}
     for gid in dict.fromkeys(([conhecido] if conhecido else []) + gids):
         seg = tenta(gid)
         if seg is None:
             continue
-        print(f"  seguidores: candidata '📈 {abbr}' gid {gid} — {len(seg)} dias, "
-              f"{peso(seg)[0]} com movimento", file=sys.stderr)
-        if melhor is None or peso(seg) > peso(melhor):
-            melhor, melhor_gid = seg, gid
-    if melhor is not None:
-        print(f"  seguidores: aba do mês '📈 {abbr}' = gid {melhor_gid} — {len(melhor)} dias", file=sys.stderr)
-        return melhor
-    print(f"  AVISO seguidores: nenhuma aba com 'META — Seguidores' de {mes} — Seguidores ficam '-'",
-          file=sys.stderr)
-    return []
+        mes_aba = max({s["d"][:7] for s in seg}, key=lambda m: sum(s["d"].startswith(m) for s in seg))
+        seg = [s for s in seg if s["d"].startswith(mes_aba)]
+        print(f"  seguidores: candidata {mes_aba} gid {gid} — {peso(seg)[0]} dias com movimento", file=sys.stderr)
+        if mes_aba not in por_mes or peso(seg) > peso(por_mes[mes_aba]):
+            por_mes[mes_aba] = seg
+    if mes not in por_mes:
+        print(f"  AVISO seguidores: nenhuma aba com 'META — Seguidores' de {mes}", file=sys.stderr)
+    return sorted((s for m in por_mes.values() for s in m), key=lambda s: s["d"])
 
 
 # --------------------------------------------------------------------------- #
