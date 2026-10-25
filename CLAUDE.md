@@ -172,6 +172,16 @@ e o build segue.
   "agend", exceto "não/sem agend…"). Filtro cruzado próprio (`STATE.lSel*`).
 Teste local: `--lp-file leads.csv`.
 
+### Escopo de cada aba (pedido do cliente)
+- **Visão Geral** (e o **Relatório**, que a espelha via `renderGeralCore`) = **conta inteira**:
+  gasto de todas as campanhas do Meta (captação WhatsApp + LP) **+ investimento em
+  seguidores** (planilha de Controle de tráfego, somado como linha de gasto sem
+  impressões/cliques). Funil: Gasto Total (quebra Captação/LP/Seguidores) →
+  Impressões → Cliques → Conversas WhatsApp (CPL próprio) → Leads LP (CPL próprio)
+  → Seguidores (custo/seguidor).
+- **Captura Meta Ads** = só campanhas de captação (WhatsApp). **Seguidores** = só a
+  planilha de seguidores. **Funil landing page** = só campanhas da LP.
+
 ### Imposto da mídia paga
 `TAX_FACTOR = 1.1385` em `build.py` (13,85%). O toggle "Imposto Meta" fica
 **ativo por padrão** (`STATE.tax=true` em `app.js`) e aplica o fator em todo o

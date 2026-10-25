@@ -549,18 +549,30 @@ function kpiCard(k){ return `<div class="kpi ${k.hero?'hero':''}"><div class="kl
 const GERAL_IDS={funnel:'geralFunnel',seg:'geralSeg',kpis2:'geralKpis2',combo:'gCombo',source:'gSource',bucket:'gBucket',plat:'gPlat',prof:'gProf',daily:'gDaily'};
 const REL_IDS  ={funnel:'relFunnel', seg:'relSeg', kpis2:'relKpis2', combo:'rCombo',source:'rSource',bucket:'rBucket',plat:'rPlat',prof:'rProf',daily:'rDaily'};
 function renderGeral(){ renderGeralCore(GERAL_IDS); }
+/* Visão Geral (e o Relatório, que a espelha) = CONTA INTEIRA: captação
+   WhatsApp + campanhas da landing page + investimento em seguidores (planilha
+   de Controle de tráfego, entra como linha de gasto sem impressões/cliques).
+   As outras abas mostram só o próprio funil. */
 function renderGeralCore(ids){
-  const fL=leadsActive(), fM=metaActive(), fS=salesActive();
+  const wL=leadsActive(), wM=metaActive();
+  const lL=lpLeadsActive().map(l=>({...l,src:'lp'})), lM=lpMetaActive();
+  const sM=segActive().filter(r=>r.sp).map(r=>({d:r.d,camp:'Seguidores (Controle de tráfego)',adset:'Seguidores',ad:'Seguidores',sp:r.sp,im:0,cl:0,pv:0,ck:0}));
+  const fL=wL.concat(lL), fM=wM.concat(lM,sM), fS=salesActive();
   const t=totals(fL,fM,fS), dv=derive(t), g=dv.gasto;
+  const sum=a=>a.reduce((x,r)=>x+r.sp,0)*taxf();
+  const gW=sum(wM), gL=sum(lM), gS=sum(sM), mid=totals([],wM.concat(lM),[]), dmid=derive(mid);
+  const nSeg=segActive().reduce((x,r)=>x+r.n,0);
   const leadsAds=fL.filter(l=>l.src==='meta'||l.src==='google');
   const nAds=leadsAds.length, mqlsAds=leadsAds.reduce((s,r)=>s+r.q,0);
   const nOrg=fL.filter(l=>l.src==='org').length;
   const semUtm=fL.filter(l=>!l.utm).length, comUtm=t.leads-semUtm;
   const steps=[
-    ['Gasto Total', brl(g), [], false, 'hl-gasto'],
-    ['Impressões', intf(t.im), [['CPM',brl(dv.cpm)]]],
-    ['Cliques', intf(t.cl), [['CTR',pct(dv.ctr)],['CPC',brl(dv.cpc)]]],
-    ['Conversas iniciadas no WhatsApp', intf(t.leads), [['CPL',brl(dv.cpl)]], false, 'hl-mql'],
+    ['Gasto Total (todas as campanhas)', brl(g), [['Captação',brl(gW)],['LP',brl(gL)],['Seguidores',brl(gS)]], false, 'hl-gasto'],
+    ['Impressões', intf(mid.im), [['CPM',brl(dmid.cpm)]]],
+    ['Cliques', intf(mid.cl), [['CTR',pct(dmid.ctr)],['CPC',brl(dmid.cpc)]]],
+    ['Conversas iniciadas no WhatsApp', intf(wL.length), [['CPL',brl(wL.length?gW/wL.length:null)]], false, 'hl-mql'],
+    ['Leads da landing page', intf(lL.length), [['CPL',brl(lL.length?gL/lL.length:null)]], false, 'hl-mql'],
+    ['Seguidores', intf(nSeg), [['Custo/seguidor',brl(nSeg?gS/nSeg:null)]], false, 'hl-fat'],
   ];
   document.getElementById(ids.funnel).innerHTML=funnelHTML(steps);
   renderSeg(ids.seg, false);
@@ -589,7 +601,7 @@ function renderGeralCore(ids){
   document.getElementById(ids.kpis2).innerHTML=k2.map(kpiCard).join('');
   comboChart(ids.combo, daily(fL,fM,fS));
   // por origem
-  const srcName={meta:'Meta Ads',google:'Google Ads',org:'Orgânico',outros:'Outros'};
+  const srcName={meta:'WhatsApp (Meta Ads)',lp:'Landing page',google:'Google Ads',org:'Orgânico',outros:'Outros'};
   const bySrc={}; fL.forEach(l=>{const k=srcName[l.src]||l.src; bySrc[k]=(bySrc[k]||0)+1;});
   hbar(ids.source, Object.entries(bySrc).map(([label,leads])=>({label,leads})), x=>x.leads, ()=>cvar('--chart-leads'));
   // por público (conjunto de anúncios) — top 10
