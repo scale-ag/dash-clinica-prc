@@ -41,6 +41,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install openpyxl (le a planilha de seguidores em .xlsx, inclusive abas ocultas)
+        run: pip install openpyxl
+
       - name: Build dashboard (le as planilhas via CSV publico, somente leitura)
         run: python build/build.py --out dist/index.html
 

@@ -232,6 +232,26 @@ def gids_da_planilha(sid: str) -> list[str]:
     return list(dict.fromkeys(achados))
 
 
+XLSX_URL = "https://docs.google.com/spreadsheets/d/{sid}/export?format=xlsx"
+
+
+def xlsx_grades(sid: str):
+    """Todas as abas (inclusive ocultas) do export .xlsx público, como grades
+    de texto no mesmo formato do CSV (datas dd/mm/aaaa)."""
+    import openpyxl  # instalado no workflow
+    req = urllib.request.Request(XLSX_URL.format(sid=sid), headers={"User-Agent": "dash-template-bot/1.0"})
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        wb = openpyxl.load_workbook(io.BytesIO(resp.read()), data_only=True, read_only=True)
+
+    def txt(v):
+        if v is None:
+            return ""
+        if isinstance(v, datetime):
+            return v.strftime("%d/%m/%Y")
+        return str(v)
+    return [(ws.title, [[txt(v) for v in row] for row in ws.iter_rows(values_only=True)]) for ws in wb.worksheets]
+
+
 def load_seguidores(local: str | None, hoje: datetime) -> list[dict]:
     """Lê a aba do mês atual pelo export CSV por gid (grade exata, como é
     exibida — o gviz foi descartado porque zera células ao inferir o tipo da
@@ -248,16 +268,6 @@ def load_seguidores(local: str | None, hoje: datetime) -> list[dict]:
     abbr = MESES_PT[hoje.month - 1]
     mes = hoje.strftime("%Y-%m")
     sid = SEG_SPREADSHEET_ID
-
-    def tenta(gid):
-        try:
-            seg = parse_seguidores(fetch_csv(EXPORT_URL.format(sid=sid, gid=gid)))
-        except Exception as e:
-            print(f"  seguidores: gid {gid} falhou ({e})", file=sys.stderr)
-            return None
-        if not seg:
-            return None
-        return seg
 
     try:
         gids = gids_da_planilha(sid)
@@ -277,14 +287,27 @@ def load_seguidores(local: str | None, hoje: datetime) -> list[dict]:
 
     # Lê TODAS as abas mensais (histórico p/ a aba Seguidores). Pode haver
     # mais de uma aba do mesmo mês (cópia vazia) — fica a com mais dados.
+    # 1º: export .xlsx da planilha inteira (inclui abas OCULTAS — ex.: "📈 Nov"
+    # ficou oculta e não aparece no htmlview); 2º (reserva): CSV por gid.
+    grades = []
+    try:
+        grades = [(f"xlsx:{nome}", g) for nome, g in xlsx_grades(sid)]
+        print(f"  seguidores: {len(grades)} abas no xlsx", file=sys.stderr)
+    except Exception as e:
+        print(f"  seguidores: xlsx falhou ({e}) — usando CSV por gid", file=sys.stderr)
+        for gid in dict.fromkeys(([conhecido] if conhecido else []) + gids):
+            try:
+                grades.append((f"gid {gid}", fetch_csv(EXPORT_URL.format(sid=sid, gid=gid))))
+            except Exception as e2:
+                print(f"  seguidores: gid {gid} falhou ({e2})", file=sys.stderr)
     por_mes = {}
-    for gid in dict.fromkeys(([conhecido] if conhecido else []) + gids):
-        seg = tenta(gid)
-        if seg is None:
+    for origem, grade in grades:
+        seg = parse_seguidores(grade)
+        if not seg:
             continue
         mes_aba = max({s["d"][:7] for s in seg}, key=lambda m: sum(s["d"].startswith(m) for s in seg))
         seg = [s for s in seg if s["d"].startswith(mes_aba)]
-        print(f"  seguidores: candidata {mes_aba} gid {gid} — {peso(seg)[0]} dias com movimento", file=sys.stderr)
+        print(f"  seguidores: candidata {mes_aba} {origem} — {peso(seg)[0]} dias com movimento", file=sys.stderr)
         if mes_aba not in por_mes or peso(seg) > peso(por_mes[mes_aba]):
             por_mes[mes_aba] = seg
     if mes not in por_mes:
